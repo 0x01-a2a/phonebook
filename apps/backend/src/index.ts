@@ -13,6 +13,7 @@ import { challengesRouter } from './routes/challenges.js';
 import { triggerRouter } from './routes/trigger.js';
 import { eventsRouter } from './routes/events.js';
 import { voiceRouter } from './routes/voice.js';
+import { twilioRouter } from './routes/twilio.js';
 import { websocketHandler } from './websocket/handler.js';
 
 const fastify = Fastify({
@@ -55,6 +56,7 @@ const start = async () => {
     await fastify.register(triggerRouter, { prefix: '/api/trigger' });
     await fastify.register(eventsRouter, { prefix: '/api/events' });
     await fastify.register(voiceRouter, { prefix: '/api/voice' });
+    await fastify.register(twilioRouter, { prefix: '/api/twilio' });
 
     // WebSocket for real-time presence
     fastify.get('/ws', { websocket: true }, websocketHandler);

@@ -3,7 +3,7 @@ import { agents } from '@phonebook/database';
 import { db, schema } from '@phonebook/database';
 import { eq, desc, asc, sql, and } from 'drizzle-orm';
 import { z } from 'zod';
-import crypto from 'crypto';
+import crypto, { randomUUID } from 'crypto';
 import { emitActivity } from './events.js';
 
 const registerAgentSchema = z.object({
@@ -21,11 +21,18 @@ const updateAgentSchema = registerAgentSchema.partial();
 
 type AgentStatus = 'online' | 'offline' | 'busy' | 'maintenance';
 
-function generatePhoneNumber(): string {
-  const prefix = '+1-0x01';
-  const a = String(Math.floor(1000 + Math.random() * 9000));
-  const b = String(Math.floor(1000 + Math.random() * 9000));
-  return `${prefix}-${a}-${b}`;
+/**
+ * Derive a deterministic virtual number from agent_id (UUID or Ed25519 public key hex).
+ * Zero cost, stable mapping, collision-resistant (100M combinations).
+ * Format: +1-0x01-XXXX-XXXX
+ */
+export function getVirtualNumberFromAgentId(agentIdHex: string): string {
+  const hash = crypto.createHash('sha256').update(agentIdHex).digest();
+  const numU32 = hash.readUInt32LE(0);
+  const eightDigits = numU32 % 100_000_000;
+  const part1 = Math.floor(eightDigits / 10000);
+  const part2 = eightDigits % 10000;
+  return `+1-0x01-${String(part1).padStart(4, '0')}-${String(part2).padStart(4, '0')}`;
 }
 
 function generateClaimToken(): string {
@@ -70,6 +77,7 @@ export async function agentsRouter(fastify: FastifyInstance) {
         name: agents.name,
         description: agents.description,
         categories: agents.categories,
+        phoneNumber: agents.phoneNumber,
         whatsappNumber: agents.whatsappNumber,
         whatsappDisplay: agents.whatsappDisplay,
         status: agents.status,
@@ -77,6 +85,7 @@ export async function agentsRouter(fastify: FastifyInstance) {
         verified: agents.verified,
         featured: agents.featured,
         pixelBannerGif: agents.pixelBannerGif,
+        pixelBannerFrames: agents.pixelBannerFrames,
         createdAt: agents.createdAt,
       })
         .from(agents)
@@ -126,6 +135,7 @@ export async function agentsRouter(fastify: FastifyInstance) {
       name: agents.name,
       description: agents.description,
       categories: agents.categories,
+      phoneNumber: agents.phoneNumber,
       whatsappDisplay: agents.whatsappDisplay,
       status: agents.status,
       reputationScore: agents.reputationScore,
@@ -196,9 +206,14 @@ export async function agentsRouter(fastify: FastifyInstance) {
     const claimToken = generateClaimToken();
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
+    // Generate UUID first, then derive virtual number deterministically from it
+    const agentId = randomUUID();
+    const phoneNumber = getVirtualNumberFromAgentId(agentId);
+
     const rows = await db.insert(agents).values({
       ...data,
-      phoneNumber: generatePhoneNumber(),
+      id: agentId,
+      phoneNumber,
       status: 'offline',
       reputationScore: 0,
       trustScore: 1.0,

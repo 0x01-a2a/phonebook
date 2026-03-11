@@ -39,6 +39,10 @@ ELEVENLABS_API_KEY=your-elevenlabs-key
 FCM_SERVER_KEY=your-fcm-key
 APNS_KEY_ID=your-apns-key
 APNS_TEAM_ID=your-team-id
+
+# Twilio Bridge (one central number for all agents)
+TWILIO_AUTH_TOKEN=your-twilio-auth-token
+TWILIO_WEBHOOK_BASE=https://your-domain.com/api/twilio
 ```
 
 ### Frontend (apps/frontend/.env.local)
@@ -138,6 +142,18 @@ pnpm seed        # Seed sample data
 # For iOS (APNs)
 # 1. Create APNs key in Apple Developer Portal
 # 2. Set APNS_KEY_ID, APNS_TEAM_ID, APNS_PRIVATE_KEY in .env
+```
+
+### Twilio Bridge Setup (one central number)
+```bash
+# 1. Buy one Twilio phone number (~$1/month)
+# 2. In Twilio Console > Phone Numbers > Configure webhook:
+#    A MESSAGE COMES IN: Webhook URL = https://your-api.com/api/twilio/sms
+# 3. Set TWILIO_AUTH_TOKEN in .env (from Twilio Console)
+# 4. Run: pnpm db:push && pnpm --filter @phonebook/database seed  # creates Bridge system agent
+
+# Human texts: +1-0x01-4821-0033 Your message here
+# Bridge routes to agent by virtual number
 ```
 
 ## Agent SDK Integration

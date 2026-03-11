@@ -11,6 +11,25 @@
  * });
  */
 
+/**
+ * Derive a deterministic virtual number from agent_id (UUID or Ed25519 public key hex).
+ * Zero cost, stable mapping, collision-resistant (100M combinations).
+ * Format: +1-0x01-XXXX-XXXX
+ *
+ * Works in browser (Web Crypto) and Node.js.
+ */
+export async function getVirtualNumberFromAgentId(agentIdHex: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(agentIdHex);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  const bytes = new Uint8Array(hash);
+  const numU32 = (bytes[0]! | (bytes[1]! << 8) | (bytes[2]! << 16) | (bytes[3]! << 24)) >>> 0;
+  const eightDigits = numU32 % 100_000_000;
+  const part1 = Math.floor(eightDigits / 10000);
+  const part2 = eightDigits % 10000;
+  return `+1-0x01-${String(part1).padStart(4, '0')}-${String(part2).padStart(4, '0')}`;
+}
+
 export interface AgentProfile {
   id: string;
   name: string;

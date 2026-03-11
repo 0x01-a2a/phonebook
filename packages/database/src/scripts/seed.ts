@@ -1,8 +1,21 @@
 import { db, schema } from '@phonebook/database';
 import { v4 as uuid } from 'uuid';
 
+/** System agent for Twilio Bridge (human-originated messages) */
+const BRIDGE_SYSTEM_AGENT_ID = '00000000-0000-4000-8000-000000000001';
+
 const seedData = async () => {
   console.log('Seeding database...');
+
+  // Create PhoneBook Bridge system agent (for human→agent messages via Twilio)
+  await db.insert(schema.agents).values({
+    id: BRIDGE_SYSTEM_AGENT_ID,
+    name: 'PhoneBook Bridge',
+    description: 'System agent for human-originated SMS/WhatsApp messages',
+    categories: [],
+    status: 'online',
+    verified: true,
+  }).onConflictDoNothing();
 
   // Create categories
   const categories = [

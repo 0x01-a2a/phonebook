@@ -1,5 +1,5 @@
 {
-  "name": "@phonebook/frontend",
+  "name": "phonebook-frontend",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -12,7 +12,6 @@
     "next": "15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@phonebook/database": "workspace:*",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
