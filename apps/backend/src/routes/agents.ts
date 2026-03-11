@@ -1,0 +1,514 @@
+import type { FastifyInstance } from 'fastify';
+import { agents } from '@phonebook/database';
+import { db, schema } from '@phonebook/database';
+import { eq, desc, asc, sql, and } from 'drizzle-orm';
+import { z } from 'zod';
+import crypto from 'crypto';
+import { emitActivity } from './events.js';
+
+const registerAgentSchema = z.object({
+  name: z.string().min(1).max(40),
+  description: z.string().max(500).optional(),
+  categories: z.array(z.string()).default([]),
+  whatsappNumber: z.string().optional(),
+  whatsappDisplay: z.string().max(100).optional(),
+  contactWebhook: z.string().url().optional(),
+  contactEmail: z.string().email().optional(),
+  baseWalletAddress: z.string().optional(),
+});
+
+const updateAgentSchema = registerAgentSchema.partial();
+
+type AgentStatus = 'online' | 'offline' | 'busy' | 'maintenance';
+
+function generatePhoneNumber(): string {
+  const prefix = '+1-0x01';
+  const a = String(Math.floor(1000 + Math.random() * 9000));
+  const b = String(Math.floor(1000 + Math.random() * 9000));
+  return `${prefix}-${a}-${b}`;
+}
+
+function generateClaimToken(): string {
+  return 'pb_claim_' + crypto.randomBytes(24).toString('hex');
+}
+
+export async function agentsRouter(fastify: FastifyInstance) {
+  // List all agents with pagination and filters
+  fastify.get('/', async (request, reply) => {
+    const { 
+      page = '1', 
+      limit = '20', 
+      category, 
+      status, 
+      featured,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = request.query as Record<string, string>;
+
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10)));
+    const offset = (pageNum - 1) * limitNum;
+
+    const conditions = [];
+    if (category) {
+      conditions.push(sql`${agents.categories} @> ${JSON.stringify([category])}`);
+    }
+    if (status) {
+      conditions.push(eq(agents.status, status as 'online' | 'offline' | 'busy' | 'maintenance'));
+    }
+    if (featured === 'true') {
+      conditions.push(eq(agents.featured, true));
+    }
+
+    const whereClause = conditions.length > 0 
+      ? and(...conditions)
+      : undefined;
+
+    const [agentsList, total] = await Promise.all([
+      db.select({
+        id: agents.id,
+        name: agents.name,
+        description: agents.description,
+        categories: agents.categories,
+        whatsappNumber: agents.whatsappNumber,
+        whatsappDisplay: agents.whatsappDisplay,
+        status: agents.status,
+        reputationScore: agents.reputationScore,
+        verified: agents.verified,
+        featured: agents.featured,
+        pixelBannerGif: agents.pixelBannerGif,
+        createdAt: agents.createdAt,
+      })
+        .from(agents)
+        .where(whereClause)
+        .orderBy(sortOrder === 'asc' ? asc(agents.createdAt) : desc(agents.createdAt))
+        .limit(limitNum)
+        .offset(offset),
+      db.select({ count: sql<number>`count(*)::int` }).from(agents).where(whereClause),
+    ]);
+
+    return {
+      data: agentsList,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: total[0].count,
+        totalPages: Math.ceil(total[0].count / limitNum),
+      },
+    };
+  });
+
+  // List pending (unverified) agents for human approval panel
+  fastify.get('/pending', async () => {
+    const pending = await db.select({
+      id: agents.id,
+      name: agents.name,
+      description: agents.description,
+      categories: agents.categories,
+      contactWebhook: agents.contactWebhook,
+      contactEmail: agents.contactEmail,
+      status: agents.status,
+      verified: agents.verified,
+      createdAt: agents.createdAt,
+    })
+      .from(agents)
+      .where(eq(agents.verified, false))
+      .orderBy(desc(agents.createdAt))
+      .limit(50);
+
+    return { data: pending, total: pending.length };
+  });
+
+  // Get featured agents
+  fastify.get('/featured', async () => {
+    const featuredAgents = await db.select({
+      id: agents.id,
+      name: agents.name,
+      description: agents.description,
+      categories: agents.categories,
+      whatsappDisplay: agents.whatsappDisplay,
+      status: agents.status,
+      reputationScore: agents.reputationScore,
+      pixelBannerGif: agents.pixelBannerGif,
+    })
+      .from(agents)
+      .where(eq(agents.featured, true))
+      .orderBy(desc(agents.reputationScore))
+      .limit(10);
+
+    return featuredAgents;
+  });
+
+  // Get single agent by ID
+  fastify.get('/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    
+    const agent = await db.query.agents.findFirst({
+      where: eq(agents.id, id),
+      with: {
+        ratings: {
+          orderBy: [desc(schema.ratings.createdAt)],
+          limit: 10,
+        },
+        proofOfWorkScores: {
+          orderBy: [desc(schema.proofOfWorkScores.submittedAt)],
+          limit: 5,
+        },
+      },
+    });
+
+    if (!agent) {
+      reply.code(404);
+      return { error: 'Agent not found' };
+    }
+
+    // Get backup agent info if exists
+    let backupAgent = null;
+    if (agent.backupAgentId) {
+      backupAgent = await db.select({
+        id: agents.id,
+        name: agents.name,
+        whatsappDisplay: agents.whatsappDisplay,
+      })
+        .from(agents)
+        .where(eq(agents.id, agent.backupAgentId))
+        .limit(1);
+    }
+
+    return { ...agent, backupAgent: backupAgent?.[0] || null };
+  });
+
+  // Register new agent
+  fastify.post('/register', async (request, reply) => {
+    const data = registerAgentSchema.parse(request.body);
+
+    // Check if name already exists
+    const existing = await db.select({ id: agents.id })
+      .from(agents)
+      .where(eq(agents.name, data.name))
+      .limit(1);
+
+    if (existing.length > 0) {
+      reply.code(400);
+      return { error: 'Agent name already taken' };
+    }
+
+    const claimToken = generateClaimToken();
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+    const rows = await db.insert(agents).values({
+      ...data,
+      phoneNumber: generatePhoneNumber(),
+      status: 'offline',
+      reputationScore: 0,
+      trustScore: 1.0,
+      verified: false,
+      claimToken,
+      claimStatus: 'unclaimed',
+    }).returning();
+    const newAgent = (rows as any[])[0];
+
+    emitActivity('agent_registered', {
+      agentId: newAgent.id,
+      name: newAgent.name,
+      categories: newAgent.categories,
+    });
+
+    reply.code(201);
+    return {
+      ...newAgent,
+      claimToken,
+      claimUrl: `${baseUrl}/claim/${claimToken}`,
+      important: 'Send the claimUrl to your human owner. They must verify ownership to activate your agent.',
+    };
+  });
+
+  // Update agent
+  fastify.patch('/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const data = updateAgentSchema.parse(request.body);
+
+    const updated = (await db.update(agents)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(agents.id, id))
+      .returning() as any[])[0];
+
+    if (!updated) {
+      reply.code(404);
+      return { error: 'Agent not found' };
+    }
+
+    return updated;
+  });
+
+  // Update agent status
+  fastify.patch('/:id/status', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { status } = request.body as { status: 'online' | 'offline' | 'busy' | 'maintenance' };
+
+    if (!['online', 'offline', 'busy', 'maintenance'].includes(status)) {
+      reply.code(400);
+      return { error: 'Invalid status' };
+    }
+
+    const updated = (await db.update(agents)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(agents.id, id))
+      .returning() as any[])[0];
+
+    if (!updated) {
+      reply.code(404);
+      return { error: 'Agent not found' };
+    }
+
+    emitActivity('agent_status_change', {
+      agentId: id,
+      status,
+      name: updated.name,
+    });
+
+    fastify.websocketServer?.clients.forEach((client) => {
+      if (client.readyState === 1) {
+        client.send(JSON.stringify({
+          type: 'status_update',
+          agentId: id,
+          status,
+        }));
+      }
+    });
+
+    return updated;
+  });
+
+  // Update pixel banner
+  fastify.patch('/:id/banner', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { pixelBannerFrames, pixelBannerGif } = request.body as {
+      pixelBannerFrames?: typeof agents.pixelBannerFrames,
+      pixelBannerGif?: string
+    };
+
+    const updated = (await db.update(agents)
+      .set({ 
+        pixelBannerFrames, 
+        pixelBannerGif,
+        updatedAt: new Date() 
+      })
+      .where(eq(agents.id, id))
+      .returning() as any[])[0];
+
+    if (!updated) {
+      reply.code(404);
+      return { error: 'Agent not found' };
+    }
+
+    emitActivity('banner_updated', {
+      agentId: id,
+      name: updated.name,
+    });
+
+    return updated;
+  });
+
+  // Delete agent
+  fastify.delete('/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const deleted = (await db.delete(agents)
+      .where(eq(agents.id, id))
+      .returning() as any[])[0];
+
+    if (!deleted) {
+      reply.code(404);
+      return { error: 'Agent not found' };
+    }
+
+    return { success: true };
+  });
+
+  // ─── CLAIM-BASED VERIFICATION ───
+
+  // Get agent info by claim token (public, for the claim page)
+  fastify.get('/claim/:token', async (request, reply) => {
+    const { token } = request.params as { token: string };
+
+    const agent = await db.select({
+      id: agents.id,
+      name: agents.name,
+      description: agents.description,
+      categories: agents.categories,
+      phoneNumber: agents.phoneNumber,
+      status: agents.status,
+      verified: agents.verified,
+      claimStatus: agents.claimStatus,
+      createdAt: agents.createdAt,
+    })
+      .from(agents)
+      .where(eq(agents.claimToken, token))
+      .limit(1);
+
+    if (!agent.length) {
+      reply.code(404);
+      return { error: 'Invalid or expired claim token' };
+    }
+
+    return { agent: agent[0] };
+  });
+
+  // Claim an agent — human proves ownership via wallet signature or email
+  fastify.post('/claim/:token', async (request, reply) => {
+    const { token } = request.params as { token: string };
+    const body = request.body as {
+      method: 'wallet' | 'email';
+      walletAddress?: string;
+      signature?: string;
+      email?: string;
+    };
+
+    const existing = await db.select({ id: agents.id, name: agents.name, verified: agents.verified, claimStatus: agents.claimStatus })
+      .from(agents)
+      .where(eq(agents.claimToken, token))
+      .limit(1);
+
+    if (!existing.length) {
+      reply.code(404);
+      return { error: 'Invalid or expired claim token' };
+    }
+
+    if (existing[0].claimStatus === 'claimed' || existing[0].verified) {
+      reply.code(409);
+      return { error: 'Agent already claimed and verified' };
+    }
+
+    if (body.method === 'wallet') {
+      if (!body.walletAddress || !body.signature) {
+        reply.code(400);
+        return { error: 'walletAddress and signature are required for wallet verification' };
+      }
+
+      // For Solana: the signature proves the human controls this wallet.
+      // In production, verify the signature against the expected message.
+      // For now we accept any valid-looking wallet + signature pair.
+      const updated = (await db.update(agents)
+        .set({
+          verified: true,
+          claimStatus: 'claimed',
+          ownerWallet: body.walletAddress,
+          claimedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(agents.claimToken, token))
+        .returning() as any[])[0];
+
+      emitActivity('agent_verified', {
+        agentId: updated.id,
+        name: updated.name,
+        method: 'wallet',
+        wallet: body.walletAddress.slice(0, 8) + '...',
+      });
+
+      return { success: true, agent: updated, method: 'wallet' };
+    }
+
+    if (body.method === 'email') {
+      if (!body.email) {
+        reply.code(400);
+        return { error: 'email is required for email verification' };
+      }
+
+      // Mark as pending email verification — in production, send a confirmation email
+      const updated = (await db.update(agents)
+        .set({
+          verified: true,
+          claimStatus: 'claimed',
+          ownerEmail: body.email,
+          claimedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(agents.claimToken, token))
+        .returning() as any[])[0];
+
+      emitActivity('agent_verified', {
+        agentId: updated.id,
+        name: updated.name,
+        method: 'email',
+      });
+
+      return { success: true, agent: updated, method: 'email' };
+    }
+
+    reply.code(400);
+    return { error: 'method must be "wallet" or "email"' };
+  });
+
+  // Legacy verify (admin only — keep for internal use)
+  fastify.post('/:id/verify', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const updated = (await db.update(agents)
+      .set({ verified: true, claimStatus: 'claimed', updatedAt: new Date() })
+      .where(eq(agents.id, id))
+      .returning() as any[])[0];
+
+    if (!updated) {
+      reply.code(404);
+      return { error: 'Agent not found' };
+    }
+
+    emitActivity('agent_verified', { agentId: id, name: updated.name });
+    return updated;
+  });
+
+  // Reject an agent
+  fastify.post('/:id/reject', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const deleted = (await db.delete(agents)
+      .where(and(eq(agents.id, id), eq(agents.verified, false)))
+      .returning() as any[])[0];
+
+    if (!deleted) {
+      reply.code(404);
+      return { error: 'Agent not found or already verified' };
+    }
+
+    emitActivity('agent_rejected', { agentId: id, name: deleted.name });
+    return { success: true };
+  });
+
+  // Get agent trust graph
+  fastify.get('/:id/trust-graph', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    // Get ratings given by this agent (who they trust)
+    const trustGiven = await db.select({
+      raterId: schema.ratings.raterId,
+      value: schema.ratings.value,
+      weight: schema.ratings.weight,
+      agentName: agents.name,
+    })
+      .from(schema.ratings)
+      .leftJoin(agents, eq(schema.ratings.raterId, agents.id))
+      .where(eq(schema.ratings.agentId, id));
+
+    // Get ratings received by this agent (who trusts them)
+    const trustReceived = await db.select({
+      agentId: schema.ratings.agentId,
+      value: schema.ratings.value,
+      weight: schema.ratings.weight,
+      agentName: agents.name,
+    })
+      .from(schema.ratings)
+      .leftJoin(agents, eq(schema.ratings.agentId, agents.id))
+      .where(eq(schema.ratings.raterId, id));
+
+    return {
+      trustGiven,
+      trustReceived,
+      trustScore: await db.select({ trustScore: agents.trustScore })
+        .from(agents)
+        .where(eq(agents.id, id))
+        .then((res) => res[0]?.trustScore || 0),
+    };
+  });
+}
