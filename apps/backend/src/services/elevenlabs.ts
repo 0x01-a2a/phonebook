@@ -78,7 +78,7 @@ export class ElevenLabsService {
       throw new Error(`Failed to create agent: ${response.statusText}`);
     }
 
-    return response.json();
+    return response.json() as Promise<VoiceAgent>;
   }
 
   /**
@@ -109,7 +109,7 @@ export class ElevenLabsService {
       throw new Error(`Failed to start call: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as { call_id: string };
     return {
       callId: data.call_id,
       status: 'initiated',
@@ -133,10 +133,16 @@ export class ElevenLabsService {
       throw new Error(`Failed to get call status: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as {
+      call_id: string;
+      status?: string;
+      duration?: number;
+      transcript?: string;
+      recording_url?: string;
+    };
     return {
       callId: data.call_id,
-      status: data.status,
+      status: (data.status || 'initiated') as CallResult['status'],
       duration: data.duration,
       transcript: data.transcript,
       recordingUrl: data.recording_url,
@@ -157,8 +163,8 @@ export class ElevenLabsService {
       throw new Error(`Failed to get voices: ${response.statusText}`);
     }
 
-    const data = await response.json();
-    return data.voices.map((v: any) => ({
+    const data = (await response.json()) as { voices: Array<{ voice_id: string; name: string; category: string }> };
+    return data.voices.map((v) => ({
       id: v.voice_id,
       name: v.name,
       category: v.category,
@@ -179,8 +185,8 @@ export class ElevenLabsService {
       throw new Error(`Failed to get models: ${response.statusText}`);
     }
 
-    const data = await response.json();
-    return data.models.map((m: any) => ({
+    const data = (await response.json()) as { models: Array<{ model_id: string; name: string }> };
+    return data.models.map((m) => ({
       id: m.model_id,
       name: m.name,
     }));

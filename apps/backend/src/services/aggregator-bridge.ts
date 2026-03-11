@@ -37,7 +37,7 @@ export async function isAgentSleeping(agentId: string): Promise<boolean> {
     clearTimeout(timeout);
 
     if (!res.ok) return false;
-    const data = await res.json();
+    const data: { sleeping?: boolean } = await res.json();
     return data.sleeping === true;
   } catch {
     clearTimeout(timeout);

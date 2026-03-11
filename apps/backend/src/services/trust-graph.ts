@@ -126,14 +126,14 @@ export async function getTrustScore(agentId: string): Promise<number> {
  */
 export async function getTrustPath(fromAgentId: string, toAgentId: string): Promise<string[]> {
   // Simple BFS to find trust path
-  const ratings = await db.select({
-    raterId: ratings.raterId,
-    agentId: ratings.agentId,
+  const ratingsData = await db.select({
+    raterId: schema.ratings.raterId,
+    agentId: schema.ratings.agentId,
   }).from(schema.ratings);
 
   const adjacency = new Map<string, string[]>();
   
-  for (const r of ratings) {
+  for (const r of ratingsData) {
     if (!adjacency.has(r.raterId)) {
       adjacency.set(r.raterId, []);
     }

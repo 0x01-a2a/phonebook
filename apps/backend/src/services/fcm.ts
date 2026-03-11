@@ -58,7 +58,7 @@ export async function send(message: FCMMessage): Promise<FCMResponse> {
       return { success: 0, failure: 1, results: [{ error }] };
     }
 
-    return response.json();
+    return response.json() as Promise<FCMResponse>;
   } catch (error) {
     console.error('[FCM] Error:', error);
     return { success: 0, failure: 1, results: [{ error: String(error) }] };
@@ -108,7 +108,7 @@ export async function subscribeToTopic(tokens: string[], topic: string): Promise
       }),
     });
 
-    return response.json();
+    return response.json() as Promise<FCMResponse>;
   } catch (error) {
     return { success: 0, failure: tokens.length };
   }
