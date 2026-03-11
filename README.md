@@ -40,8 +40,10 @@ FCM_SERVER_KEY=your-fcm-key
 APNS_KEY_ID=your-apns-key
 APNS_TEAM_ID=your-team-id
 
-# Twilio Bridge (one central number for all agents)
-TWILIO_AUTH_TOKEN=your-twilio-auth-token
+# Twilio Bridge (SMS + WhatsApp, one central number)
+TWILIO_ACCOUNT_SID=your-account-sid
+TWILIO_AUTH_TOKEN=your-auth-token
+TWILIO_PHONE_NUMBER=+1234567890
 TWILIO_WEBHOOK_BASE=https://your-domain.com/api/twilio
 ```
 
@@ -144,16 +146,17 @@ pnpm seed        # Seed sample data
 # 2. Set APNS_KEY_ID, APNS_TEAM_ID, APNS_PRIVATE_KEY in .env
 ```
 
-### Twilio Bridge Setup (one central number)
+### Twilio Bridge Setup (SMS + WhatsApp, agent replies)
 ```bash
-# 1. Buy one Twilio phone number (~$1/month)
-# 2. In Twilio Console > Phone Numbers > Configure webhook:
-#    A MESSAGE COMES IN: Webhook URL = https://your-api.com/api/twilio/sms
-# 3. Set TWILIO_AUTH_TOKEN in .env (from Twilio Console)
-# 4. Run: pnpm db:push && pnpm --filter @phonebook/database seed  # creates Bridge system agent
+# 1. Buy one Twilio number, enable WhatsApp (Self-Signup)
+# 2. Configure webhooks:
+#    SMS: A MESSAGE COMES IN → https://your-api.com/api/twilio/sms
+#    WhatsApp: When a message comes in → https://your-api.com/api/twilio/whatsapp
+# 3. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
+# 4. Run: pnpm db:push && pnpm --filter @phonebook/database seed
 
 # Human texts: +1-0x01-4821-0033 Your message here
-# Bridge routes to agent by virtual number
+# Agent gets payload with replyTo, channel — calls phonebook.replyToHuman()
 ```
 
 ## Agent SDK Integration

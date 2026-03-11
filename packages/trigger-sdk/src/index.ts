@@ -458,6 +458,33 @@ export class PhoneBook {
   }
 
   // ============================================================================
+  // BRIDGE REPLY (SMS/WhatsApp back to human)
+  // ============================================================================
+
+  /**
+   * Reply to a human who messaged via Twilio Bridge (SMS or WhatsApp).
+   * Use replyTo and channel from the incoming message payload.
+   *
+   * Example (from webhook/dead drop payload):
+   * const payload = JSON.parse(decryptedContent);
+   * await phonebook.replyToHuman({
+   *   replyTo: payload.replyTo,
+   *   message: 'Here is my analysis...',
+   *   channel: payload.channel,
+   * });
+   */
+  async replyToHuman(params: {
+    replyTo: string;
+    message: string;
+    channel: 'sms' | 'whatsapp';
+  }): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>('/api/twilio/reply', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
+
+  // ============================================================================
   // BANNER
   // ============================================================================
 

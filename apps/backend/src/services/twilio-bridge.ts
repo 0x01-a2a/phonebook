@@ -1,7 +1,7 @@
 /**
  * Twilio Bridge — one central number for all agents
  *
- * Human texts the central Twilio number with:
+ * Supports SMS and WhatsApp. Human texts:
  *   +1-0x01-4821-0033 Your message here
  * or short form:
  *   4821-0033 Your message here
@@ -10,11 +10,13 @@
  *   1. Parses extension from message body
  *   2. Looks up agent by virtual number
  *   3. Routes to agent via contactWebhook, 0x01 aggregator (PROPOSE), or Dead Drop
+ *   4. Agent can reply via POST /api/twilio/reply → Twilio sends back to human
  */
 
 import { agents, deadDropMessages } from '@phonebook/database';
 import { db } from '@phonebook/database';
 import { eq } from 'drizzle-orm';
+import twilio from 'twilio';
 import * as voice from './voice-gateway.js';
 import * as aggregator from './aggregator-bridge.js';
 import { encryptMessage } from '../routes/dead-drop.js';
@@ -22,8 +24,14 @@ import { encryptMessage } from '../routes/dead-drop.js';
 /** System agent ID for human-originated messages (must exist in DB, add via seed) */
 export const BRIDGE_SYSTEM_AGENT_ID = '00000000-0000-4000-8000-000000000001';
 
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || '';
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || '';
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || '';
+
 // Match +1-0x01-XXXX-XXXX or 0x01-XXXX-XXXX or XXXX-XXXX or XXXXXXXX (8 digits)
 const EXTENSION_REGEX = /(?:\+1-)?(?:0x01-)?(\d{4})-?(\d{4})|(\d{8})/;
+
+export type Channel = 'sms' | 'whatsapp';
 
 export interface IncomingSms {
   From: string;
@@ -38,7 +46,52 @@ export interface BridgeResult {
   agentId?: string;
   agentName?: string;
   routedVia?: 'dead_drop' | 'webhook' | 'aggregator';
+  replyTo?: string;
+  channel?: Channel;
   error?: string;
+}
+
+/**
+ * Normalize Twilio From/To address. WhatsApp uses "whatsapp:+14155551234".
+ */
+export function normalizeTwilioAddress(addr: string): { normalized: string; channel: Channel } {
+  const trimmed = (addr || '').trim();
+  if (trimmed.toLowerCase().startsWith('whatsapp:')) {
+    return {
+      normalized: trimmed.slice(9).trim(),
+      channel: 'whatsapp',
+    };
+  }
+  return { normalized: trimmed, channel: 'sms' };
+}
+
+/**
+ * Send reply from agent back to human via SMS or WhatsApp.
+ */
+export async function sendReply(
+  to: string,
+  message: string,
+  channel: Channel,
+): Promise<{ success: boolean; error?: string }> {
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
+    return { success: false, error: 'Twilio not configured (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)' };
+  }
+
+  const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+  const from = channel === 'whatsapp' ? `whatsapp:${TWILIO_PHONE_NUMBER}` : TWILIO_PHONE_NUMBER;
+  const toAddr = channel === 'whatsapp' ? `whatsapp:${to.replace(/^whatsapp:/, '')}` : to;
+
+  try {
+    await client.messages.create({
+      body: message,
+      from,
+      to: toAddr,
+    });
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, error: msg };
+  }
 }
 
 /**
@@ -68,12 +121,15 @@ export function parseExtensionFromBody(body: string): { phoneNumber: string; mes
 }
 
 /**
- * Route incoming SMS to the target agent.
+ * Route incoming SMS/WhatsApp to the target agent.
+ * fromRaw: Twilio From (e.g. "+14155551234" or "whatsapp:+14155551234")
  */
 export async function routeSmsToAgent(
-  fromHuman: string,
+  fromRaw: string,
   body: string,
 ): Promise<BridgeResult> {
+  const { normalized: fromHuman, channel } = normalizeTwilioAddress(fromRaw);
+
   const parsed = parseExtensionFromBody(body);
 
   if (!parsed) {
@@ -97,8 +153,10 @@ export async function routeSmsToAgent(
 
   const payload = {
     from: fromHuman,
+    replyTo: fromHuman,
+    channel,
     message,
-    source: 'twilio_sms',
+    source: channel === 'whatsapp' ? 'twilio_whatsapp' : 'twilio_sms',
     timestamp: new Date().toISOString(),
   };
 
@@ -133,6 +191,8 @@ export async function routeSmsToAgent(
           agentId: agent.id,
           agentName: agent.name,
           routedVia: 'webhook',
+          replyTo: fromHuman,
+          channel,
         };
       }
     } catch (err) {
@@ -167,6 +227,8 @@ export async function routeSmsToAgent(
         agentId: agent.id,
         agentName: agent.name,
         routedVia: 'aggregator',
+        replyTo: fromHuman,
+        channel,
       };
     }
   }
@@ -186,5 +248,7 @@ export async function routeSmsToAgent(
     agentId: agent.id,
     agentName: agent.name,
     routedVia: 'dead_drop',
+    replyTo: fromHuman,
+    channel,
   };
 }
