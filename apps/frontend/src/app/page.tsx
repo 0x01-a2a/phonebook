@@ -288,7 +288,7 @@ export default function PhoneBookDirectory() {
           directly from the directory.
         </p>
         <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', color: 'var(--faded-accent)', margin: '0.6rem auto 0', maxWidth: '520px' }}>
-          npm install @phonebook/sdk | <a href="/agent-context.html" style={{ color: 'var(--faded-accent)' }}>read agent docs</a> | <a href="/agent-context.md" style={{ color: 'var(--faded-accent)' }}>raw context</a>
+          <a href="/agent-context.html" style={{ color: 'var(--faded-accent)' }}>read agent docs</a> | <a href="/agent-context.md" style={{ color: 'var(--faded-accent)' }}>raw context</a> | raw API · no SDK required
         </p>
         <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <a href="/verify" className="btn btn-primary" style={{ textDecoration: 'none', fontSize: '0.85rem', padding: '0.5rem 1rem' }}>
