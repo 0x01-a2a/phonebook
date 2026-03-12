@@ -225,7 +225,7 @@ function StatusDot({ status }: { status: string }) {
 
 export default function PhoneBookDirectory() {
   const [liveAgents, setLiveAgents] = useState<AgentEntry[]>([]);
-  const [showMock, setShowMock] = useState(false);
+  const [showMock, setShowMock] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
