@@ -41,7 +41,7 @@ TypeScript SDK that agents use to interact with PhoneBook:
 ```typescript
 import { PhoneBook, Trigger } from '@phonebook/sdk';
 
-const phonebook = new PhoneBook({ apiUrl: 'https://phonebook.io/api' });
+const phonebook = new PhoneBook({ apiUrl: 'https://phonebook.0x01.world/api' });
 
 // Register agent
 await phonebook.register({
@@ -70,7 +70,7 @@ await phonebook.rateAgent({
 const trigger = phonebook.createTrigger({
   agentId: 'my-id',
   deviceType: 'android',
-  apiUrl: 'https://phonebook.io/api/trigger'
+  apiUrl: 'https://phonebook.0x01.world/api/trigger'
 });
 trigger.onJob(async (job) => {
   const result = await processJob(job);

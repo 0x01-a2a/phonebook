@@ -23,32 +23,6 @@ const EVENT_LABELS: Record<string, { label: string; symbol: string; color: strin
   voice_call: { label: 'CALL', symbol: '%', color: '#1A5276' },
 };
 
-function generateMockEvents(): ActivityEvent[] {
-  const now = Date.now();
-  return [
-    { type: 'wake_triggered', timestamp: new Date(now - 4000).toISOString(), data: { name: 'ContentForge', wakeType: 'fcm', latency: 120 } },
-    { type: 'job_created', timestamp: new Date(now - 11000).toISOString(), data: { jobType: 'task', toAgentName: 'CodeAssist Pro', fromAgent: 'TradingBot Alpha' } },
-    { type: 'agent_status_change', timestamp: new Date(now - 18000).toISOString(), data: { name: 'DataMesh Agent', status: 'busy' } },
-    { type: 'rating_given', timestamp: new Date(now - 25000).toISOString(), data: { raterName: 'OpenClaw Research', targetName: 'LegalParser', dimension: 'accuracy', value: 5 } },
-    { type: 'dead_drop_sent', timestamp: new Date(now - 33000).toISOString(), data: {} },
-    { type: 'banner_updated', timestamp: new Date(now - 40000).toISOString(), data: { name: 'SecurityAudit v3' } },
-    { type: 'job_completed', timestamp: new Date(now - 48000).toISOString(), data: { name: 'CodeAssist Pro', payment: '2.50 USDC' } },
-    { type: 'agent_registered', timestamp: new Date(now - 55000).toISOString(), data: { name: 'MarketSense', categories: ['research', 'market', 'trends'] } },
-    { type: 'search_performed', timestamp: new Date(now - 62000).toISOString(), data: { query: 'smart contract auditor', results: 3 } },
-    { type: 'voice_call', timestamp: new Date(now - 70000).toISOString(), data: { from: 'TradingBot Alpha', to: 'SecurityAudit v3', duration: '45s' } },
-    { type: 'agent_verified', timestamp: new Date(now - 78000).toISOString(), data: { name: 'DocuMind' } },
-    { type: 'wake_triggered', timestamp: new Date(now - 85000).toISOString(), data: { name: 'DesignPilot', wakeType: 'apns', latency: 340 } },
-    { type: 'job_created', timestamp: new Date(now - 92000).toISOString(), data: { jobType: 'payment', toAgentName: 'VoiceAgent 01' } },
-    { type: 'agent_status_change', timestamp: new Date(now - 100000).toISOString(), data: { name: 'InfraBot', status: 'maintenance' } },
-    { type: 'rating_given', timestamp: new Date(now - 108000).toISOString(), data: { raterName: 'LegalParser', targetName: 'OpenClaw Research', dimension: 'reliability', value: 5 } },
-    { type: 'dead_drop_sent', timestamp: new Date(now - 115000).toISOString(), data: {} },
-    { type: 'job_completed', timestamp: new Date(now - 123000).toISOString(), data: { name: 'DataMesh Agent', payment: '1.20 USDC' } },
-    { type: 'search_performed', timestamp: new Date(now - 130000).toISOString(), data: { query: 'voice translation agent', results: 2 } },
-    { type: 'banner_updated', timestamp: new Date(now - 138000).toISOString(), data: { name: 'TradingBot Alpha' } },
-    { type: 'agent_registered', timestamp: new Date(now - 145000).toISOString(), data: { name: 'DesignPilot', categories: ['design', 'ui-ux'] } },
-  ];
-}
-
 function formatTime(ts: string): string {
   return new Date(ts).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
@@ -73,7 +47,7 @@ function formatEvent(event: ActivityEvent): string {
 }
 
 export default function ActivityFeed() {
-  const [events, setEvents] = useState<ActivityEvent[]>(generateMockEvents);
+  const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [connected, setConnected] = useState(true);
   const feedRef = useRef<HTMLDivElement>(null);
   const esRef = useRef<EventSource | null>(null);

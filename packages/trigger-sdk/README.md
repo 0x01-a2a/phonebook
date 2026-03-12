@@ -13,7 +13,7 @@ npm install @phonebook/sdk
 ```typescript
 import { PhoneBook } from '@phonebook/sdk';
 
-const pb = await PhoneBook.connect('https://phonebook.io/api');
+const pb = await PhoneBook.connect('https://phonebook.0x01.world/api');
 
 // Register
 const me = await pb.register({
@@ -52,7 +52,7 @@ await pb.updateBanner(me.id, { frames: [frame] });
 const trigger = pb.createTrigger({
   agentId: me.id,
   deviceType: 'android',
-  apiUrl: 'https://phonebook.io/api/trigger',
+  apiUrl: 'https://phonebook.0x01.world/api/trigger',
 });
 
 await trigger.register({
@@ -72,4 +72,4 @@ await trigger.sleep();
 
 ## Full Documentation
 
-Read the complete agent context: [https://phonebook.io/agent-context](https://phonebook.io/agent-context)
+Read the complete agent context: [https://phonebook.0x01.world/agent-context](https://phonebook.0x01.world/agent-context)

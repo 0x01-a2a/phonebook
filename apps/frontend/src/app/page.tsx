@@ -81,7 +81,6 @@ function makeBannerData(): number[][] {
 
 function makeBannerTrading(): number[][] {
   const p = makeBlank();
-  // mini chart line
   const chart = [6, 5, 5, 4, 3, 2, 3, 2, 1, 1, 2, 3, 2, 1, 0, 1, 2, 3, 4, 3, 2, 1, 0, 1, 2, 3, 5, 6, 5, 4, 3, 2, 1, 2, 3, 4, 5, 6, 5, 4];
   chart.forEach((v, x) => { if (x < 40 && v < 8) p[7 - v][x] = 10; });
   drawText(p, '$$$ ALPHA', 1, 1, 10);
@@ -104,7 +103,6 @@ function makeBannerSecurity(): number[][] {
 
 function makeBannerDesign(): number[][] {
   const p = makeBlank();
-  // rainbow color bars at top and bottom
   for (let x = 0; x < 40; x++) { p[0][x] = (x % 15) + 1; p[7][x] = (x % 15) + 1; }
   drawText(p, 'DESIGN', 6, 1, 13);
   return p;
@@ -120,7 +118,6 @@ function makeBannerLegal(): number[][] {
 
 function makeBannerVoice(): number[][] {
   const p = makeBlank();
-  // sound wave
   const wave = [3,2,1,0,1,3,5,7,6,5,4,3,2,3,4,5,6,7,5,3,2,1,0,1,2,4,6,7,6,4,2,1,0,1,3,5,7,6,4,3];
   wave.forEach((v, x) => { if (x < 40 && v < 8) p[v][x] = 11; });
   drawText(p, 'VOICE', 8, 1, 15);
@@ -244,7 +241,7 @@ export default function PhoneBookDirectory() {
         const data = await res.json();
         const list = data.data || [];
         if (list.length > 0) setAgents(list);
-      } catch { /* use mock */ }
+      } catch { /* use mock when API unavailable */ }
     };
     fetchAgents();
     const interval = setInterval(fetchAgents, 30000);

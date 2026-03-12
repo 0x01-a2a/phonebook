@@ -17,20 +17,9 @@ interface AgentEntry {
   createdAt: string;
 }
 
-const MOCK_UNCLAIMED: AgentEntry[] = [
-  { id: 'p-1', name: 'MarketSense', description: 'Market research, competitor analysis, trend detection', phoneNumber: '+1-0x01-3377-2200', categories: ['research', 'market'], status: 'offline', verified: false, claimStatus: 'unclaimed', createdAt: new Date(Date.now() - 300000).toISOString() },
-  { id: 'p-2', name: 'TranslateBot', description: 'Real-time document translation across 40+ languages', phoneNumber: '+1-0x01-4455-8899', categories: ['translation', 'nlp'], status: 'offline', verified: false, claimStatus: 'unclaimed', createdAt: new Date(Date.now() - 1800000).toISOString() },
-];
-
-const MOCK_CLAIMED: AgentEntry[] = [
-  { id: 'c-1', name: 'OpenClaw Research', phoneNumber: '+1-0x01-4821-0033', categories: ['research', 'analysis'], status: 'online', verified: true, claimStatus: 'claimed', ownerWallet: '7xKXtg2C...v9Qw3nM', claimedAt: new Date(Date.now() - 86400000).toISOString(), createdAt: new Date(Date.now() - 172800000).toISOString() },
-  { id: 'c-2', name: 'CodeAssist Pro', phoneNumber: '+1-0x01-7744-1192', categories: ['developer'], status: 'online', verified: true, claimStatus: 'claimed', ownerEmail: 'dev@codeassist.ai', claimedAt: new Date(Date.now() - 43200000).toISOString(), createdAt: new Date(Date.now() - 100000000).toISOString() },
-  { id: 'c-3', name: 'TradingBot Alpha', phoneNumber: '+1-0x01-9021-5564', categories: ['trading', 'defi'], status: 'online', verified: true, claimStatus: 'claimed', ownerWallet: '4aPq8zWe...kR2mY7x', claimedAt: new Date(Date.now() - 7200000).toISOString(), createdAt: new Date(Date.now() - 259200000).toISOString() },
-];
-
 export default function VerifyPanel() {
-  const [unclaimed, setUnclaimed] = useState<AgentEntry[]>(MOCK_UNCLAIMED);
-  const [claimed, setClaimed] = useState<AgentEntry[]>(MOCK_CLAIMED);
+  const [unclaimed, setUnclaimed] = useState<AgentEntry[]>([]);
+  const [claimed, setClaimed] = useState<AgentEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
 
@@ -44,7 +33,7 @@ export default function VerifyPanel() {
         setUnclaimed(list.filter(a => !a.verified));
         setClaimed(list.filter(a => a.verified));
       }
-    } catch { /* use mock */ }
+    } catch { /* keep previous */ }
     finally { setLoading(false); }
   }, []);
 

@@ -7,7 +7,7 @@
  * import { PhoneBook } from '@phonebook/sdk';
  * 
  * const phonebook = new PhoneBook({
- *   apiUrl: 'https://phonebook.io/api'
+ *   apiUrl: 'https://phonebook.0x01.world/api'
  * });
  */
 
@@ -138,8 +138,8 @@ export class PhoneBook {
    * One-liner connection to PhoneBook
    *
    * Example:
-   * const pb = await PhoneBook.connect('https://phonebook.io/api');
-   * const pb = await PhoneBook.connect('https://phonebook.io/api', { token: 'my-token' });
+   * const pb = await PhoneBook.connect('https://phonebook.0x01.world/api');
+   * const pb = await PhoneBook.connect('https://phonebook.0x01.world/api', { token: 'my-token' });
    */
   static async connect(apiUrl: string, options?: { token?: string }): Promise<PhoneBook> {
     const pb = new PhoneBook({ apiUrl, token: options?.token });
@@ -541,7 +541,7 @@ export class PhoneBook {
    * const trigger = phonebook.createTrigger({
    *   agentId: 'my-agent-uuid',
    *   deviceType: 'android',
-   *   apiUrl: 'https://phonebook.io/api/trigger'
+   *   apiUrl: 'https://phonebook.0x01.world/api/trigger'
    * });
    */
   createTrigger(config: TriggerConfig): Trigger {

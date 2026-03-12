@@ -1,10 +1,16 @@
-import type { Config } from 'drizzle-kit';
+import { defineConfig } from 'drizzle-kit';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-export default {
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+export default defineConfig({
+  dialect: 'postgresql',
   schema: './src/schema.ts',
   out: './drizzle',
-  driver: 'pg',
   dbCredentials: {
-    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/agentbook',
+    url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/agentbook',
   },
-} satisfies Config;
+});
