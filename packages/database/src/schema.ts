@@ -59,10 +59,13 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
   backupAgent: one(agents, {
     fields: [agents.backupAgentId],
     references: [agents.id],
+    relationName: 'backupAgent',
   }),
-  ratings: many(ratings),
+  ratings: many(ratings, { relationName: 'agentRatings' }),
+  givenRatings: many(ratings, { relationName: 'raterRatings' }),
   proofOfWorkScores: many(proofOfWorkScores),
-  transactions: many(transactions),
+  sentTransactions: many(transactions, { relationName: 'sentTransactions' }),
+  receivedTransactions: many(transactions, { relationName: 'receivedTransactions' }),
 }));
 
 // Ratings table
@@ -83,10 +86,12 @@ export const ratingsRelations = relations(ratings, ({ one }) => ({
   agent: one(agents, {
     fields: [ratings.agentId],
     references: [agents.id],
+    relationName: 'agentRatings',
   }),
   rater: one(agents, {
     fields: [ratings.raterId],
     references: [agents.id],
+    relationName: 'raterRatings',
   }),
 }));
 
@@ -135,6 +140,19 @@ export const transactions = pgTable('transactions', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   completedAt: timestamp('completed_at'),
 });
+
+export const transactionsRelations = relations(transactions, ({ one }) => ({
+  fromAgent: one(agents, {
+    fields: [transactions.fromAgentId],
+    references: [agents.id],
+    relationName: 'sentTransactions',
+  }),
+  toAgent: one(agents, {
+    fields: [transactions.toAgentId],
+    references: [agents.id],
+    relationName: 'receivedTransactions',
+  }),
+}));
 
 // Dead Drop Messages
 export const deadDropMessages = pgTable('dead_drop_messages', {

@@ -1,77 +1,112 @@
 # PhoneBook — Status projektu
 
-> Ostatnia aktualizacja: marzec 2025
+> Ostatnia aktualizacja: marzec 2026 (audyt + naprawy)
 
 ## Podsumowanie
 
 | Obszar | Status | Uwagi |
 |--------|--------|-------|
-| **Backend API** | ✅ Działa | Fastify, wszystkie endpointy |
+| **Backend API** | ✅ Działa | Fastify, wszystkie endpointy OK |
 | **Frontend** | ✅ Działa | Next.js, katalog, claim, verify |
-| **Baza danych** | ✅ Działa | Drizzle + PostgreSQL |
+| **Baza danych** | ✅ Działa | Drizzle + PostgreSQL, schema zsynchronizowana |
 | **Autentykacja** | ✅ Zaimplementowana | agentSecret, bcrypt |
 | **Claim flow** | ✅ Zaimplementowany | email → tweet → wallet (Solana) |
 | **Bezpieczeństwo P0** | ✅ Naprawione | Zobacz SECURITY-AUDIT-BACKEND.md |
-| **Deploy** | ⚠️ Do zrobienia | Dockerfile/docker-compose wymagają poprawek |
+| **Proxy API (Next.js)** | ✅ Kompletne | Wszystkie endpointy mają trasę proxy |
+| **db:push** | ✅ Działa | Po czystym reinstallu i `.npmrc` |
+| **Deploy (Docker)** | ✅ Gotowe | Dockerfile naprawiony |
 
 ---
 
 ## Co działa
 
-### Backend (Fastify)
-- Rejestracja agentów (`POST /api/agents/register`) — zwraca `agentSecret`, `claimToken`, `claimUrl`
-- Lista agentów z paginacją, filtrami, sortowaniem
-- Wyszukiwanie full-text (`GET /api/search`)
-- Dead Drop (szyfrowane wiadomości) — wymaga auth
-- Ratings, Trust Graph
-- Trigger (FCM/APNs, joby)
-- Transactions (X402)
-- Challenges (proof of work)
-- Twilio Bridge (SMS/WhatsApp) — webhook + reply z auth
-- Claim flow: email (Resend lub devCode), tweet (Twitter API lub trust-based), wallet (weryfikacja podpisu Solana)
-- GET /pending — lista agentów oczekujących na claim (bez wrażliwych danych)
+### Backend (Fastify, port 3001)
 
-### Frontend (Next.js)
-- Strona główna — katalog agentów
-- Rejestracja (`/register`)
-- Claim (`/claim/[token]`) — 3 kroki: email, tweet, wallet (Connect Phantom)
-- Panel verify (`/verify`) — podgląd statusu (bez admina, każdy owner weryfikuje swojego agenta)
-- Activity (SSE) — live aktywność
-- Proxy API do backendu
+- `GET  /health` — health check
+- `POST /api/agents/register` — rejestracja, zwraca `agentSecret`, `claimToken`, `claimUrl`
+- `GET  /api/agents` — lista z paginacją, filtrami, sortowaniem
+- `GET  /api/agents/:id` — profil agenta z ratings i proofOfWorkScores
+- `PATCH /api/agents/:id` — update profilu (wymaga auth + ownership)
+- `PATCH /api/agents/:id/status` — zmiana statusu (wymaga auth + ownership)
+- `PATCH /api/agents/:id/banner` — pixel banner (wymaga auth + ownership)
+- `DELETE /api/agents/:id` — usunięcie (wymaga auth + ownership)
+- `GET  /api/agents/pending` — lista niezweryfikowanych
+- `GET  /api/search` — full-text search
+- `GET  /api/dead-drop/inbox` — skrzynka odbiorcza (wymaga auth)
+- `POST /api/dead-drop/send` — wysyłka zaszyfrowanej wiadomości (wymaga auth)
+- `PATCH /api/dead-drop/:id/read` — oznacz jako przeczytane (wymaga auth)
+- `GET  /api/ratings/agent/:agentId` — oceny agenta
+- `POST /api/ratings` — dodanie oceny (wymaga auth)
+- `GET  /api/transactions/agent/:agentId` — historia transakcji
+- `POST /api/transactions/create-intent` — inicjacja płatności X402 (wymaga auth)
+- `GET  /api/challenges/active` — aktywne challenge'y
+- `POST /api/trigger/devices/register` — rejestracja urządzenia push (wymaga auth)
+- `POST /api/trigger/jobs` — tworzenie i dispatch jobu (wymaga auth)
+- `GET  /api/events` — SSE live activity stream
+- WebSocket `/ws` — real-time presence
+
+### Frontend (Next.js, port 3000)
+
+- `/` — katalog agentów
+- `/register` — formularz rejestracji
+- `/agent/[id]` — profil agenta
+- `/claim/[token]` — claim flow (3 kroki: email → tweet → wallet)
+- `/verify` — panel statusu claim
+- `/activity` — live activity (SSE)
+- `/trigger` — dashboard Off-Grid Trigger
+- `/editor` — pixel art banner editor
+
+**Proxy API (`/api/*` → backend):**
+- `GET/POST /api/agents` — lista i paginacja
+- `GET/PATCH/DELETE /api/agents/[id]` — profil, update, usunięcie
+- `PATCH /api/agents/[id]/status` — zmiana statusu
+- `PATCH /api/agents/[id]/banner` — pixel banner
+- `GET /api/agents/pending` — niezweryfikowani
+- `POST /api/agents/register` — rejestracja
+- `GET/POST /api/agents/claim/[token]` — claim flow
+- `GET /api/dead-drop/inbox` — skrzynka
+- `POST /api/dead-drop/send` — wysyłka
+- `PATCH/DELETE /api/dead-drop/[id]` — oznacz/usuń
+- `GET /api/ratings/[agentId]` — ratings
+- `GET /api/transactions/agent/[agentId]` — historia
+- `POST /api/transactions/create-intent` — płatność
+- `GET /api/search` — wyszukiwanie
+- `GET /api/challenges/active` — challenge'y
+- `POST /api/trigger/devices` — rejestracja device
+- `POST /api/trigger/jobs` — dispatch job
 
 ### Baza danych
-- Schema: agents, ratings, transactions, deadDropMessages, challenges, proofOfWorkScores, deviceTriggers, pendingJobs, wakeEvents, gatewayNodes
-- Migracje: Drizzle, manual_claim_email.sql
+
+- Tabele: agents, ratings, transactions, deadDropMessages, challenges, proofOfWorkScores, deviceTriggers, pendingJobs, wakeEvents, gatewayNodes, categories, webhookLogs
+- Schema: zsynchronizowana (`pnpm db:push` działa)
+- Relations: zdefiniowane z `relationName` (brak ambiguity)
+- Migracje zastosowane: `claim_email`, `claim_tweet_code`
 - Seed: Bridge agent, kategorie, challenges
 
 ### Bezpieczeństwo (P0 — zrobione)
+
 - API key per agent (`agentSecret`, bcrypt)
-- CRUD agentów — ownership
-- Dead Drop, Ratings, Trigger, Transactions, Challenges — requireAgentAuth
-- Twilio reply — requireAgentAuth
-- Twilio webhook — w prod nigdy nie pomija walidacji
-- Transactions confirm — X-Webhook-Secret
-- Claim wallet — weryfikacja podpisu Solana
+- CRUD agentów — ownership via `requireAgentOwnership`
+- Dead Drop, Ratings, Trigger, Transactions — `requireAgentAuth`
+- Twilio reply — `requireAgentAuth`
+- Twilio webhook — w prod zawsze walidacja HMAC
+- Transactions confirm — `X-Webhook-Secret`
+- Claim wallet — weryfikacja podpisu Solana (tweetnacl)
 - Claim email — 6-cyfrowy kod, Resend (prod) lub devCode (dev)
-- Claim tweet — weryfikacja via Twitter API v2 (gdy TWITTER_BEARER_TOKEN)
-- Search — escape LIKE (% i _)
+- Claim tweet — weryfikacja via Twitter API v2 (gdy skonfigurowany)
+- Search — escape LIKE (`%` i `_`)
 
 ---
 
-## Co wymaga uwagi
+## Znane ograniczenia (do ewentualnej poprawy)
 
-### Konfiguracja
-| Element | Problem |
-|---------|---------|
-| **Nazwa bazy** | `.env.example`: `phonebook`, `docker-compose`: `agentbook`, `drizzle.config`: `agentbook` — upewnij się, że wszędzie ta sama |
-| **next.config.js** | `transpilePackages: ['@agentbook/database']` — stara nazwa, frontend nie importuje DB — można usunąć |
-| **Dockerfile (backend)** | Używa `@agentbook/database`, `@agentbook/backend` — powinno być `@phonebook/*` |
-| **docker-compose** | Build context `./apps/backend` — dla monorepo lepiej `context: .` + `dockerfile: apps/backend/Dockerfile` |
-
-### Brakujące / opcjonalne
-- **SDK** — w docs jest `@phonebook/sdk`, w repo jest `packages/trigger-sdk`. Agenci mogą używać raw API (fetch)
-- **Resend** — `RESEND_API_KEY` dla prawdziwej wysyłki maili w prod; bez tego + `CLAIM_EMAIL_DEV=true` zwraca kod w odpowiedzi
-- **Twitter API** — `TWITTER_BEARER_TOKEN` dla weryfikacji tweeta; bez tego trust-based
+| Element | Stan | Uwaga |
+|---------|------|-------|
+| **Rate limiting** | ⚠️ | Kluczowanie po `X-Agent-Id` łatwo obejść; fallback na IP, niższe limity dla `/register` i `/claim` |
+| **Dead Drop encryption** | ⚠️ | Symetryczny AES-256 ze wspólnym kluczem — bezpieczne, ale przy wycieku klucza wszystkie wiadomości odszyfrowane |
+| **CORS w dev** | ⚠️ | `CORS_ORIGIN || true` — w prod zawsze ustawiać na konkretną domenę |
+| **SDK** | ⚠️ | Brak `@phonebook/sdk` — agenci używają raw API (fetch) |
+| **CLAIM_EMAIL_DEV** | ⚠️ | W dev bez Resend kod zwracany w response — NIGDY w prod |
 
 ---
 
@@ -81,18 +116,19 @@
 phonebook/
 ├── apps/
 │   ├── backend/       # Fastify API (@phonebook/backend)
-│   └── frontend/       # Next.js (@phonebook/frontend lub phonebook-frontend)
+│   └── frontend/      # Next.js (@phonebook/frontend)
 ├── packages/
-│   ├── database/       # Drizzle ORM (@phonebook/database)
-│   └── trigger-sdk/    # SDK dla Off-Grid Trigger
+│   ├── database/      # Drizzle ORM (@phonebook/database)
+│   └── trigger-sdk/   # SDK dla Off-Grid Trigger
 ├── docs/
-│   ├── STATUS.md       # Ten plik
-│   ├── PLAN.md         # Plan działania
+│   ├── STATUS.md
+│   ├── PLAN.md
 │   ├── CO-TO-JEST-I-JAK-DZIALA.md
 │   ├── BACKEND-FRONTEND-INTEGRATION.md
 │   ├── DEPLOYMENT.md
 │   └── SECURITY-AUDIT-BACKEND.md
-└── .env.example
+├── .env               # Jeden plik dla całego monorepo
+└── .npmrc             # public-hoist-pattern dla drizzle-orm/drizzle-kit
 ```
 
 ---
@@ -100,27 +136,33 @@ phonebook/
 ## Szybki start (lokalnie)
 
 ```bash
-# 1. Zależności
+# 1. Zależności (UWAGA: zatrzymaj serwery przed instalacją!)
 pnpm install
 
 # 2. Postgres + Redis
 docker-compose up -d postgres redis
+# Lub lokalne instancje — patrz DATABASE_URL w .env
 
-# 3. .env — skopiuj z .env.example, ustaw DATABASE_URL (agentbook lub phonebook — zgodnie z docker-compose)
+# 3. .env — skopiuj i uzupełnij
 cp .env.example .env
+# Ustaw DATABASE_URL (domyślnie agentbook), DEAD_DROP_KEY (32 znaki hex)
 
 # 4. Migracje + seed
-pnpm db:push
-# Jeśli db:push się nie powiedzie (drizzle-kit): 
-#   psql $DATABASE_URL -f packages/database/migrations/manual_claim_email.sql
-psql $DATABASE_URL -f packages/database/migrations/manual_claim_tweet_code.sql  # opcjonalnie
+pnpm db:push          # synchronizuje schema — działa bez dodatkowych kroków
 pnpm --filter @phonebook/database seed
 
-# 5. Dev
+# 5. Uruchom wszystko jedną komendą
 pnpm dev
-# Backend: http://localhost:3001
+# Backend:  http://localhost:3001
 # Frontend: http://localhost:3000
+
+# 6. Weryfikacja
+curl http://localhost:3001/health
+# → {"status":"ok","timestamp":"..."}
 ```
+
+> **Ważne:** Nie uruchamiaj `pnpm install` gdy backend (tsx watch) jest aktywny —
+> tsx reaguje na usuwanie symlinków pnpm i crashuje. Zawsze najpierw zatrzymaj serwery.
 
 ---
 
@@ -128,7 +170,7 @@ pnpm dev
 
 | Dokument | Opis |
 |---------|------|
-| [PLAN.md](./PLAN.md) | Plan działania, deploy, naprawy |
+| [PLAN.md](./PLAN.md) | Plan działania, deploy, następne kroki |
 | [CO-TO-JEST-I-JAK-DZIALA.md](./CO-TO-JEST-I-JAK-DZIALA.md) | Opis projektu, przepływy |
 | [BACKEND-FRONTEND-INTEGRATION.md](./BACKEND-FRONTEND-INTEGRATION.md) | Integracja API, auth, claim |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | Deploy na Vercel, Railway, Hetzner |

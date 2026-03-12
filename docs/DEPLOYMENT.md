@@ -44,7 +44,7 @@
 
 ### Uwagi
 - Frontend **nie** łączy się z PostgreSQL ani Redis – tylko proxy do backendu
-- `next.config.js` ma `transpilePackages: ['@agentbook/database']` – to pozostałość; frontend nie importuje database. Można usunąć.
+- `next.config.js` – `transpilePackages` wyczyszczony (usunięto `@agentbook/database`)
 
 ---
 
@@ -96,10 +96,10 @@ Backend to **długo działający serwer** (Fastify + WebSocket). Vercel nie host
 - **Railway** – managed Postgres przy deployu backendu
 
 ### Po utworzeniu bazy
-1. `pnpm --filter @phonebook/database push` – tworzy tabele (Drizzle)
-2. Jeśli push się nie powiedzie (wersja drizzle-kit), uruchom migrację ręcznie:
-   `psql $DATABASE_URL -f packages/database/migrations/manual_claim_email.sql`
-3. `pnpm --filter @phonebook/database seed` – PhoneBook Bridge, kategorie, challenges
+1. `pnpm db:push` – tworzy tabele (Drizzle, działa po czystej instalacji)
+2. `pnpm --filter @phonebook/database seed` – PhoneBook Bridge, kategorie, challenges
+
+> Uwaga: `pnpm install` musi być uruchomiony przed `db:push` i **nigdy** gdy backend jest aktywny (tsx watch crashuje przy zmianach symlinków pnpm).
 
 Ustaw `DATABASE_URL` w backendzie (i lokalnie dla seeda).
 

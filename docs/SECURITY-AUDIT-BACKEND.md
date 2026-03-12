@@ -1,6 +1,6 @@
 # PhoneBook Backend — Audyt bezpieczeństwa
 
-> **Ostatnia aktualizacja:** Naprawy P0 wdrożone. Zobacz sekcję "Status napraw" na końcu.
+> **Ostatnia aktualizacja:** Marzec 2026 — Naprawy P0 wdrożone. Audyt potwierdzony. Zobacz sekcję "Status napraw" na końcu.
 
 ## Podsumowanie
 

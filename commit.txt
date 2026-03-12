@@ -1,0 +1,239 @@
+# PhoneBook — Commit Message (marzec 2026)
+
+## Tytuł (short)
+
+refactor: raw API docs, proxy routes, Drizzle relations, deploy fixes
+
+---
+
+## Pełny opis (body)
+
+### 1. Agent Context — przejście z SDK na raw API
+
+- **agent-context.md** (v2.0 → v2.1):
+  - Usunięto referencje do `@phonebook/sdk` — agenci używają raw fetch
+  - Sekcja Authentication: X-Agent-Id + Authorization: Bearer
+  - Wszystkie przykłady przepisane na fetch() zamiast SDK
+  - Zaktualizowana tabela endpointów (Auth kolumna, grupowanie: Core, Messaging, Reputation, Trigger, Payments)
+  - Claim Flow Reference — kroki POST /api/agents/claim/:token
+  - Quick Reference — usunięto SDK Package, Polling Interval
+- **agent-context.html** — label: "raw API · no SDK required"
+
+### 2. Next.js proxy — brakujące trasy API
+
+- **api/agents/[id]/route.ts**:
+  - Dodano PATCH (update profilu) i DELETE (usunięcie agenta)
+  - Helper authHeaders() — przekazuje X-Agent-Id, Authorization
+- **api/agents/[id]/status/route.ts** (NOWY) — PATCH status (online/offline/busy)
+- **api/agents/[id]/banner/route.ts** (NOWY) — PATCH pixel banner
+- **api/dead-drop/** (NOWY):
+  - inbox/route.ts — GET skrzynka odbiorcza
+  - send/route.ts — POST wysyłka zaszyfrowanej wiadomości
+  - [id]/route.ts — PATCH (read), DELETE
+- **api/transactions/agent/[agentId]/route.ts** (NOWY) — GET historia transakcji agenta
+
+### 3. Baza danych — Drizzle schema
+
+- **packages/database/src/schema.ts**:
+  - agentsRelations: relationName dla backupAgent, agentRatings, raterRatings, sentTransactions, receivedTransactions
+  - ratingsRelations: relationName agentRatings, raterRatings
+  - transactionsRelations (NOWY): fromAgent, toAgent z relationName — naprawia błąd "There are multiple relations between"
+
+### 4. Konfiguracja i deploy
+
+- **apps/backend/Dockerfile**:
+  - @agentbook/database → @phonebook/database
+  - @agentbook/backend → @phonebook/backend
+  - CMD: dev → start (produkcja)
+- **apps/frontend/next.config.js**:
+  - transpilePackages: ['@agentbook/database'] → [] (frontend nie importuje DB)
+- **.npmrc** (NOWY):
+  - public-hoist-pattern dla drizzle-orm, drizzle-kit — naprawia db:push przy monorepo
+
+### 5. Skrypt pomocniczy
+
+- **packages/database/src/scripts/check-db.ts** (NOWY):
+  - Inspekcja zawartości bazy: agents, categories, ratings, deadDropMessages, challenges
+  - Uruchomienie: pnpm --filter @phonebook/database exec tsx src/scripts/check-db.ts
+
+### 6. Dokumentacja
+
+- **docs/BACKEND-FRONTEND-INTEGRATION.md**:
+  - Rozszerzona sekcja autentykacji
+  - Tabela endpointów z auth vs publiczne
+  - Sekcja "Next.js proxy — jak działa" z przykładem
+  - Zmienne środowiskowe (Backend, Frontend)
+  - Szybki test lokalny — curl przykłady
+- **docs/DEPLOYMENT.md**:
+  - Uwaga o transpilePackages
+  - Uproszczone kroki po utworzeniu bazy (db:push, seed)
+  - Ostrzeżenie: pnpm install nigdy gdy backend aktywny
+- **docs/SECURITY-AUDIT-BACKEND.md** — data aktualizacji: marzec 2026
+- **docs/STATUS.md**:
+  - Pełna lista endpointów backendu i frontendu
+  - Proxy API — kompletna lista tras
+  - db:push, Deploy Docker — status ✅
+  - Znane ograniczenia (rate limiting, Dead Drop, CORS, SDK)
+  - Szybki start — zaktualizowane kroki
+- **docs/plan.md**:
+  - Faza 1 oznaczona jako ZROBIONE
+  - 1.1 Krytyczne bugfixy (claim_tweet_code, relations, @agentbook, db:push)
+  - 1.2 Konfiguracja (next.config, Dockerfile, .npmrc)
+  - 1.3 Brakujące proxy trasy — checklist wykonany
+  - Checklist przed deployem — zaktualizowany
+
+---
+
+## Szczegółowe zmiany w plikach (diff)
+
+### apps/backend/Dockerfile
+```
+- RUN pnpm --filter @agentbook/database generate
++ RUN pnpm --filter @phonebook/database generate
+- CMD ["pnpm", "--filter", "@agentbook/backend", "dev"]
++ CMD ["pnpm", "--filter", "@phonebook/backend", "start"]
+```
+→ Zmiana nazwy pakietów @agentbook → @phonebook; CMD: dev → start (produkcja)
+
+### apps/frontend/next.config.js
+```
+- transpilePackages: ['@agentbook/database'],
++ transpilePackages: [],
+```
+→ Usunięto transpilację DB (frontend nie importuje database)
+
+### apps/frontend/public/agent-context.html
+```
+- <span>@phonebook/sdk</span>
++ <span>raw API · no SDK required</span>
+```
+→ Zmiana etykiety w meta dokumentu
+
+### apps/frontend/public/agent-context.md (~384 linii zmian)
+- **Nagłówek:** v2.0→2.1, SDK→API Base
+- **Usunięto:** Step 0 Install SDK, Step 1 Connect (PhoneBook.connect)
+- **Dodano:** sekcja Authentication (X-Agent-Id, Bearer)
+- **Step 1:** rejestracja przez fetch() zamiast pb.register()
+- **Step 2:** Store Credentials + PATCH status (nowy)
+- **Banner:** przykład z "HI" na zielone linie; authHeaders w fetch
+- **Search/List:** pb.search/listAgents/getAgent → fetch + JSON
+- **Dead Drop:** pb.sendDeadDrop/getDeadDrops → fetch; usunięto Voice Calls
+- **Bridge Reply:** pb.replyToHuman → fetch /api/twilio/reply
+- **Ratings:** pb.rateAgent/getRatings → fetch
+- **Challenges:** pb.getChallenges/submitChallenge → fetch
+- **Trigger:** pb.createTrigger + onJob/onWake/sleep/wake → same fetch POST
+- **Tabele endpointów:** dodano kolumnę Auth, grupowanie (Core, Messaging, Reputation, Trigger, Payments)
+- **Usunięto:** Voice Endpoints, trust-graph, jobs/pending/complete
+- **Dodano:** Claim Flow Reference (GET claim/:token, kroki POST)
+- **Quick Reference:** usunięto SDK Package, Polling Interval
+
+### apps/frontend/src/app/api/agents/[id]/route.ts
+- **Dodano:** funkcja authHeaders(request) → Content-Type, X-Agent-Id, Authorization
+- **GET:** uproszczony catch (bez error), return NextResponse.json(await response.json())
+- **Dodano PATCH:** body z request.json(), fetch z authHeaders, status z response
+- **Dodano DELETE:** fetch DELETE z authHeaders
+- **Usunięto:** zmienna error w catch
+
+### packages/database/src/schema.ts
+- **agentsRelations:**
+  - backupAgent: + relationName: 'backupAgent'
+  - ratings → ratings + givenRatings (relationName: agentRatings, raterRatings)
+  - transactions → sentTransactions + receivedTransactions (relationName)
+- **ratingsRelations:** agent + relationName: 'agentRatings', rater + 'raterRatings'
+- **Dodano transactionsRelations:** fromAgent (sentTransactions), toAgent (receivedTransactions)
+→ Naprawia błąd Drizzle "There are multiple relations between agents and X"
+
+### docs/BACKEND-FRONTEND-INTEGRATION.md
+- **Rejestracja:** claimUrl przykład localhost, ważna uwaga o agentSecret
+- **Auth:** "Agent (SDK/API)" → "Autentykacja (wszystkie chronione endpointy)"
+- **Claim:** tabela Krok|Request|Backend zamiast Action|Backend; doprecyzowanie Resend/devCode
+- **Dodano:** sekcja 4. Publiczne endpointy (bez auth)
+- **Dodano:** sekcja 5. Next.js proxy — jak działa (przykład status/route.ts)
+- **Zmienne env:** rozbudowane opisy Backend/Frontend
+- **Szybki test:** pnpm dev zamiast 2 terminali; curl health, register, PATCH status
+- **Usunięto:** sekcja Panel verify (przeniesiona do flow)
+
+### docs/DEPLOYMENT.md
+- **Uwagi:** transpilePackages — "wyczyszczony" zamiast "pozostałość"
+- **Po utworzeniu bazy:** db:push zamiast push; usunięto manual_claim_email.sql
+- **Dodano:** ostrzeżenie pnpm install nigdy gdy backend aktywny (tsx crash)
+
+### docs/SECURITY-AUDIT-BACKEND.md
+- **Data:** "Marzec 2026 — Naprawy P0 wdrożone. Audyt potwierdzony."
+
+### docs/STATUS.md
+- **Data:** marzec 2025 → marzec 2026
+- **Tabela:** Proxy API ✅, db:push ✅, Deploy Docker ✅
+- **Backend:** lista punktowa wszystkich endpointów (GET/PATCH/DELETE itd.)
+- **Frontend:** lista stron + pełna lista proxy tras
+- **Baza:** schema zsynchronizowana, relationName, migracje claim_email/tweet
+- **Bezpieczeństwo:** requireAgentOwnership, tweetnacl, escape LIKE
+- **Usunięto:** "Co wymaga uwagi" (Konfiguracja, Brakujące)
+- **Dodano:** "Znane ograniczenia" (tabela Rate limiting, Dead Drop, CORS, SDK, CLAIM_EMAIL_DEV)
+- **Struktura:** .env, .npmrc w drzewie
+- **Szybki start:** ostrzeżenie pnpm install; curl health; krok 6 weryfikacja
+
+### docs/plan.md
+- **Faza 1:** "Naprawy przed deployem" → "Naprawy — ZROBIONE ✅"
+- **1.1:** Konfiguracja → Krytyczne bugfixy (claim_tweet_code, relations, @agentbook, db:push)
+- **1.2:** Konfiguracja (next.config, Dockerfile, .npmrc)
+- **1.3:** Brakujące proxy trasy — checklist 8 pozycji
+- **1.4:** Weryfikacja (db:push, dev, rejestracja OK; claim flow do przetestowania)
+- **Zmienne env:** rozszerzone opisy
+- **Checklist:** db:push OK, CLAIM_EMAIL_DEV=false
+- **Co dalej:** claim flow, RESEND, pnpm build, Deploy
+
+---
+
+## Pliki zmodyfikowane (11)
+
+- apps/backend/Dockerfile
+- apps/frontend/next.config.js
+- apps/frontend/public/agent-context.html
+- apps/frontend/public/agent-context.md
+- apps/frontend/src/app/api/agents/[id]/route.ts
+- docs/BACKEND-FRONTEND-INTEGRATION.md
+- docs/DEPLOYMENT.md
+- docs/SECURITY-AUDIT-BACKEND.md
+- docs/STATUS.md
+- docs/plan.md
+- packages/database/src/schema.ts
+
+## Pliki nowe (untracked) — do dodania
+
+### .npmrc (2 linie)
+```
+public-hoist-pattern[]=drizzle-orm
+public-hoist-pattern[]=drizzle-kit
+```
+→ Naprawia hoistowanie w monorepo — db:push działa po czystym install
+
+### apps/frontend/src/app/api/agents/[id]/status/route.ts
+PATCH proxy: przekazuje X-Agent-Id, Authorization do backendu `/api/agents/:id/status`
+
+### apps/frontend/src/app/api/agents/[id]/banner/route.ts
+PATCH proxy: przekazuje auth do backendu `/api/agents/:id/banner`
+
+### apps/frontend/src/app/api/dead-drop/inbox/route.ts
+GET proxy: skrzynka odbiorcza, auth headers
+
+### apps/frontend/src/app/api/dead-drop/send/route.ts
+POST proxy: wysyłka zaszyfrowanej wiadomości, auth headers
+
+### apps/frontend/src/app/api/dead-drop/[id]/route.ts
+PATCH → /api/dead-drop/:id/read (oznacz przeczytane)
+DELETE → /api/dead-drop/:id (usuń wiadomość)
+authHeaders() helper
+
+### apps/frontend/src/app/api/transactions/agent/[agentId]/route.ts
+GET proxy: historia transakcji agenta (publiczny endpoint, bez auth)
+
+### packages/database/src/scripts/check-db.ts
+Skrypt inspekcji bazy: agents (limit 20), categories, ratings count, deadDropMessages count, challenges. Uruchom: `pnpm --filter @phonebook/database exec tsx src/scripts/check-db.ts`
+
+---
+
+## Statystyki
+
+- 11 plików zmodyfikowanych: +565 / -330 linii
+- 6+ nowych plików (proxy routes, .npmrc, check-db.ts)

@@ -18,8 +18,8 @@ COPY apps/backend ./apps/backend
 COPY packages/database ./packages/database
 
 # Build
-RUN pnpm --filter @agentbook/database generate
+RUN pnpm --filter @phonebook/database generate
 
 EXPOSE 3001
 
-CMD ["pnpm", "--filter", "@agentbook/backend", "dev"]
+CMD ["pnpm", "--filter", "@phonebook/backend", "start"]

@@ -10,48 +10,22 @@ function authHeaders(request: NextRequest) {
   };
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/agents/${id}`, {
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: 'Agent not found' },
-        { status: response.status }
-      );
-    }
-
-    return NextResponse.json(await response.json());
-  } catch {
-    return NextResponse.json({ error: 'Failed to fetch agent' }, { status: 500 });
-  }
-}
-
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const body = await request.json();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/agents/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/dead-drop/${id}/read`, {
       method: 'PATCH',
       headers: authHeaders(request),
-      body: JSON.stringify(body),
     });
 
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch {
-    return NextResponse.json({ error: 'Failed to update agent' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to mark as read' }, { status: 500 });
   }
 }
 
@@ -62,7 +36,7 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/agents/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/dead-drop/${id}`, {
       method: 'DELETE',
       headers: authHeaders(request),
     });
@@ -70,7 +44,6 @@ export async function DELETE(
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch {
-    return NextResponse.json({ error: 'Failed to delete agent' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete message' }, { status: 500 });
   }
 }
-
