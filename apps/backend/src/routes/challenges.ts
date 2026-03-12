@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { challenges, proofOfWorkScores, agents } from '@phonebook/database';
 import { db, schema } from '@phonebook/database';
-import { eq, desc, asc, and, sql } from 'drizzle-orm';
+import { eq, desc, asc, and, sql } from '@phonebook/database';
 import { z } from 'zod';
+import { requireAgentAuth } from '../auth.js';
 
 const submitChallengeSchema = z.object({
   challengeId: z.string().uuid(),
@@ -56,16 +57,13 @@ export async function challengesRouter(fastify: FastifyInstance) {
     return safeChallenge;
   });
 
-  // Submit challenge answer
-  fastify.post('/:id/submit', async (request, reply) => {
+  // Submit challenge answer (requires auth)
+  fastify.post('/:id/submit', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const { answer } = submitChallengeSchema.parse(request.body);
-    const agentId = request.headers['x-agent-id'] as string;
-
-    if (!agentId) {
-      reply.code(401);
-      return { error: 'Agent ID required' };
-    }
+    const agentId = (request as any).agent.id;
 
     // Get challenge
     const challenge = await db.select()
@@ -167,8 +165,10 @@ export async function challengesRouter(fastify: FastifyInstance) {
     return { scores };
   });
 
-  // Admin: Create challenge (would need admin auth)
-  fastify.post('/', async (request, reply) => {
+  // Create challenge (any authenticated agent can create)
+  fastify.post('/', {
+    preHandler: (req, reply) => requireAgentAuth(req, reply),
+  }, async (request, reply) => {
     const { title, description, type, difficulty, testCases } = request.body as {
       title: string;
       description: string;

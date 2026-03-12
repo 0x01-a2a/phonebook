@@ -67,7 +67,12 @@ Backend to **długo działający serwer** (Fastify + WebSocket). Vercel nie host
 | `HOST` | nie | 0.0.0.0 |
 | `CORS_ORIGIN` | tak | URL frontendu, np. `https://phonebook.0x01.world` |
 | `FRONTEND_URL` | tak | Dla linków claim, np. `https://phonebook.0x01.world` |
-| `DEAD_DROP_KEY` | tak | 32 znaki, szyfrowanie |
+| `DEAD_DROP_KEY` | tak | 32 znaki hex (np. `node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"`) |
+| `RESEND_API_KEY` | prod | Wysyłka maili claim (resend.com). Bez tego + CLAIM_EMAIL_DEV zwraca kod w odpowiedzi. |
+| `CLAIM_EMAIL_FROM` | prod | Adres nadawcy (np. `PhoneBook <noreply@domena.com>`) |
+| `TWITTER_BEARER_TOKEN` | opcjonalnie | Weryfikacja tweeta (Twitter API v2). Bez tego trust-based. |
+| `TRANSACTION_WEBHOOK_SECRET` | prod | Sekret dla POST /api/transactions/confirm (X-Webhook-Secret) |
+| `CLAIM_EMAIL_DEV` | dev | `true` = zwraca kod email gdy brak Resend |
 | `TWILIO_*` | jeśli SMS | Account SID, Auth Token, Phone, Webhook Base |
 | `ELEVENLABS_*` | jeśli voice | API Key, Agent ID |
 | `FCM_*`, `APNS_*` | jeśli push | Off-Grid Trigger |
@@ -92,7 +97,9 @@ Backend to **długo działający serwer** (Fastify + WebSocket). Vercel nie host
 
 ### Po utworzeniu bazy
 1. `pnpm --filter @phonebook/database push` – tworzy tabele (Drizzle)
-2. `pnpm --filter @phonebook/database seed` – PhoneBook Bridge, kategorie, challenges
+2. Jeśli push się nie powiedzie (wersja drizzle-kit), uruchom migrację ręcznie:
+   `psql $DATABASE_URL -f packages/database/migrations/manual_claim_email.sql`
+3. `pnpm --filter @phonebook/database seed` – PhoneBook Bridge, kategorie, challenges
 
 Ustaw `DATABASE_URL` w backendzie (i lokalnie dla seeda).
 
@@ -132,6 +139,7 @@ Ustaw `REDIS_URL` w backendzie.
 - [ ] `CORS_ORIGIN` = `https://phonebook.0x01.world` (lub twoja domena)
 - [ ] `FRONTEND_URL` = `https://phonebook.0x01.world`
 - [ ] `DEAD_DROP_KEY` – 32 znaki
+- [ ] `RESEND_API_KEY` – dla maili claim (prod)
 - [ ] Twilio: `TWILIO_WEBHOOK_BASE` = URL backendu
 
 ### Baza
@@ -144,9 +152,39 @@ Ustaw `REDIS_URL` w backendzie.
 
 ---
 
-## 7. Znane problemy / do poprawy
+## 7. Hetzner VPS — skrót
+
+Jeśli hostujesz backend na Hetznerze:
+
+```bash
+# SSH, Node, pnpm
+ssh root@<IP>
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt install -y nodejs && npm install -g pnpm
+
+# Repo, .env, build
+cd /opt && git clone https://github.com/0x01-a2a/phonebook.git && cd phonebook
+nano .env  # DATABASE_URL, REDIS_URL, CORS_ORIGIN, FRONTEND_URL, DEAD_DROP_KEY
+pnpm install && pnpm db:push && pnpm --filter @phonebook/database seed
+pnpm build
+
+# PM2
+pm2 start "pnpm --filter @phonebook/backend start" --name phonebook-backend
+pm2 save && pm2 startup
+
+# Caddy (SSL)
+apt install caddy
+# /etc/caddy/Caddyfile: api.phonebook.0x01.world { reverse_proxy localhost:3001 }
+systemctl reload caddy
+```
+
+DNS: A record `api.phonebook.0x01.world` → IP VPS.
+
+---
+
+## 8. Znane problemy / do poprawy
 
 1. **vercel.json** – `installCommand: "npm install"` – projekt używa pnpm. Dla monorepo lepiej `pnpm install`.
-2. **next.config.js** – `transpilePackages: ['@agentbook/database']` – stara nazwa, frontend nie używa database. Można usunąć.
-3. **Backend Dockerfile** – używa `@agentbook/database` i `@agentbook/backend` – poprawne to `@phonebook/*`.
+2. **next.config.js** – `transpilePackages: ['@agentbook/database']` – stara nazwa, można usunąć.
+3. **Backend Dockerfile** – używa `@agentbook/*` – poprawne to `@phonebook/*`.
 4. **docker-compose** – `POSTGRES_DB: agentbook` vs `.env` czasem `phonebook` – upewnij się, że nazwy się zgadzają.

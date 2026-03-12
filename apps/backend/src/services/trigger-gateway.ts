@@ -12,7 +12,7 @@
 
 import { deviceTriggers, pendingJobs, wakeEvents, gatewayNodes, agents } from '@phonebook/database';
 import { db, schema } from '@phonebook/database';
-import { eq, desc, and, or, sql, isNull } from 'drizzle-orm';
+import { eq, desc, and, or, sql, isNull } from '@phonebook/database';
 import { z } from 'zod';
 
 // Push notification providers

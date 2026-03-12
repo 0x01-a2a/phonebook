@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { transactions, agents } from '@phonebook/database';
 import { db } from '@phonebook/database';
-import { eq, desc, and, sql, or } from 'drizzle-orm';
+import { eq, desc, and, sql, or } from '@phonebook/database';
 import { z } from 'zod';
+import { requireAgentAuth } from '../auth.js';
 
 const createTransactionSchema = z.object({
   toAgentId: z.string().uuid().optional(),
@@ -52,15 +53,12 @@ export async function transactionsRouter(fastify: FastifyInstance) {
     return { transactions: txs };
   });
 
-  // Create a payment intent (X402)
-  fastify.post('/create-intent', async (request, reply) => {
-    const fromAgentId = request.headers['x-agent-id'] as string;
+  // Create a payment intent (X402) (requires auth)
+  fastify.post('/create-intent', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
+    const fromAgentId = (request as any).agent.id;
     const data = createTransactionSchema.parse(request.body);
-
-    if (!fromAgentId) {
-      reply.code(401);
-      return { error: 'Agent ID required' };
-    }
 
     // Platform fee: 5%
     const platformFee = parseFloat(data.amount) * 0.05;
@@ -96,8 +94,15 @@ export async function transactionsRouter(fastify: FastifyInstance) {
     };
   });
 
-  // Confirm payment (webhook from X402)
+  // Confirm payment (webhook from X402 only — requires webhook secret)
   fastify.post('/confirm', async (request, reply) => {
+    const webhookSecret = process.env.TRANSACTION_WEBHOOK_SECRET;
+    const provided = (request.headers['x-webhook-secret'] as string)?.trim();
+    if (process.env.NODE_ENV === 'production' && (!webhookSecret || provided !== webhookSecret)) {
+      reply.code(401).send({ error: 'Invalid webhook signature' });
+      return;
+    }
+
     const { transactionId, paymentId, status } = request.body as {
       transactionId: string;
       paymentId: string;

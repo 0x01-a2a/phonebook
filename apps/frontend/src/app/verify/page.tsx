@@ -11,9 +11,6 @@ interface AgentEntry {
   status: string;
   verified: boolean;
   claimStatus?: string;
-  ownerWallet?: string;
-  ownerEmail?: string;
-  claimedAt?: string;
   createdAt: string;
 }
 
@@ -21,16 +18,20 @@ export default function VerifyPanel() {
   const [unclaimed, setUnclaimed] = useState<AgentEntry[]>([]);
   const [claimed, setClaimed] = useState<AgentEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     try {
-      const res = await fetch('/api/agents?limit=50&sortBy=createdAt&sortOrder=desc');
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      const list = (data.data || []) as AgentEntry[];
-      if (list.length > 0) {
-        setUnclaimed(list.filter(a => !a.verified));
+      const [pendingRes, agentsRes] = await Promise.all([
+        fetch('/api/agents/pending'),
+        fetch('/api/agents?limit=100&sortBy=createdAt&sortOrder=desc'),
+      ]);
+      if (pendingRes.ok) {
+        const pendingData = await pendingRes.json();
+        setUnclaimed((pendingData.data || []) as AgentEntry[]);
+      }
+      if (agentsRes.ok) {
+        const agentsData = await agentsRes.json();
+        const list = (agentsData.data || []) as AgentEntry[];
         setClaimed(list.filter(a => a.verified));
       }
     } catch { /* keep previous */ }
@@ -42,39 +43,6 @@ export default function VerifyPanel() {
     const interval = setInterval(fetchAll, 15000);
     return () => clearInterval(interval);
   }, [fetchAll]);
-
-  const handleApprove = async (agentId: string) => {
-    setProcessing(agentId);
-    try {
-      const res = await fetch(`/api/agents/${agentId}/verify`, { method: 'POST' });
-      if (res.ok) {
-        const agent = unclaimed.find(a => a.id === agentId);
-        if (agent) {
-          setUnclaimed(prev => prev.filter(a => a.id !== agentId));
-          setClaimed(prev => [...prev, { ...agent, verified: true, claimStatus: 'claimed' }]);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to approve agent', e);
-    } finally {
-      setProcessing(null);
-    }
-  };
-
-  const handleReject = async (agentId: string) => {
-    if (!confirm('Are you sure you want to reject this agent? This cannot be undone.')) return;
-    setProcessing(agentId);
-    try {
-      const res = await fetch(`/api/agents/${agentId}/reject`, { method: 'POST' });
-      if (res.ok) {
-        setUnclaimed(prev => prev.filter(a => a.id !== agentId));
-      }
-    } catch (e) {
-      console.error('Failed to reject agent', e);
-    } finally {
-      setProcessing(null);
-    }
-  };
 
   const formatDate = (ts: string) => new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
@@ -100,7 +68,7 @@ export default function VerifyPanel() {
         <span>VERIFIED: <strong style={{ color: 'var(--status-online)' }}>{claimed.length}</strong></span>
       </div>
 
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 0, opacity: loading ? 0.6 : 1 }}>
 
         {/* Left: Unclaimed / Pending */}
         <div style={{ borderRight: '1px solid var(--faded-accent)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -132,43 +100,7 @@ export default function VerifyPanel() {
                   {agent.categories?.slice(0, 3).map(c => <span key={c} className="category-tag">{c}</span>)}
                 </div>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--faded-accent)', marginTop: '0.3rem' }}>
-                  registered {formatDate(agent.createdAt)} — waiting for human to visit claim URL
-                </div>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-                  <button
-                    onClick={() => handleApprove(agent.id)}
-                    disabled={processing === agent.id}
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '0.7rem',
-                      padding: '0.3rem 0.75rem',
-                      background: 'var(--status-online)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '3px',
-                      cursor: processing === agent.id ? 'not-allowed' : 'pointer',
-                      opacity: processing === agent.id ? 0.6 : 1,
-                    }}
-                  >
-                    {processing === agent.id ? '...' : '✓ Approve'}
-                  </button>
-                  <button
-                    onClick={() => handleReject(agent.id)}
-                    disabled={processing === agent.id}
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '0.7rem',
-                      padding: '0.3rem 0.75rem',
-                      background: 'transparent',
-                      color: 'var(--faded-accent)',
-                      border: '1px solid var(--faded-accent)',
-                      borderRadius: '3px',
-                      cursor: processing === agent.id ? 'not-allowed' : 'pointer',
-                      opacity: processing === agent.id ? 0.6 : 1,
-                    }}
-                  >
-                    {processing === agent.id ? '...' : '✗ Reject'}
-                  </button>
+                  registered {formatDate(agent.createdAt)} — owner completes claim (email → tweet → wallet)
                 </div>
               </div>
             ))}
@@ -197,19 +129,6 @@ export default function VerifyPanel() {
                 {agent.phoneNumber && (
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--faded-accent)' }}>{agent.phoneNumber}</div>
                 )}
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--ink)', marginTop: '0.3rem' }}>
-                  {agent.ownerWallet && (
-                    <span>Owner wallet: <strong>{agent.ownerWallet}</strong></span>
-                  )}
-                  {agent.ownerEmail && (
-                    <span>Owner email: <strong>{agent.ownerEmail}</strong></span>
-                  )}
-                </div>
-                {agent.claimedAt && (
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--faded-accent)', marginTop: '0.15rem' }}>
-                    claimed {formatDate(agent.claimedAt)}
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -219,9 +138,9 @@ export default function VerifyPanel() {
       {/* Explainer */}
       <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--faded-accent)', background: 'rgba(44,24,16,0.03)' }}>
         <div style={{ maxWidth: '800px', margin: '0 auto', fontFamily: 'var(--font-mono)', fontSize: '0.73rem', color: 'var(--faded-accent)', lineHeight: 1.8 }}>
-          <strong style={{ color: 'var(--ink)' }}>How verification works:</strong> When an agent registers via the SDK, it receives a unique claim URL.
-          The human must complete 3 steps: (1) verify email, (2) post verification tweet, (3) sign with Solana wallet.
-          Manual approve/reject buttons allow admins to filter spam. Rate limits prevent abuse.
+          <strong style={{ color: 'var(--ink)' }}>How verification works:</strong> When an agent registers, it receives a unique claim URL.
+          The owner completes 3 steps: (1) verify email, (2) post verification tweet, (3) connect wallet & sign.
+          No admin approval — each owner verifies their own agent.
         </div>
       </div>
 

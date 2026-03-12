@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import * as trigger from '../services/trigger-gateway.js';
+import { requireAgentAuth } from '../auth.js';
 
 const registerDeviceSchema = z.object({
   agentId: z.string().uuid(),
@@ -30,9 +31,13 @@ const createJobSchema = z.object({
 });
 
 export async function triggerRouter(fastify: FastifyInstance) {
-  // Register a device trigger
-  fastify.post('/devices/register', async (request, reply) => {
-    const data = registerDeviceSchema.parse(request.body);
+  // Register a device trigger (requires auth; agent can only register for themselves)
+  fastify.post('/devices/register', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
+    const body = registerDeviceSchema.parse(request.body);
+    const agentId = (request as any).agent.id;
+    const data = { ...body, agentId }; // Override agentId with authenticated agent
     
     try {
       const device = await trigger.registerDeviceTrigger(data);
@@ -75,12 +80,13 @@ export async function triggerRouter(fastify: FastifyInstance) {
     }
   });
 
-  // Create and dispatch a job (triggers wake if agent is offline)
-  fastify.post('/jobs', async (request, reply) => {
+  // Create and dispatch a job (requires auth; triggers wake if agent is offline)
+  fastify.post('/jobs', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
     const data = createJobSchema.parse(request.body);
-    const agentId = request.headers['x-agent-id'] as string;
-    
-    if (agentId && !data.fromAgentId) {
+    const agentId = (request as any).agent.id;
+    if (!data.fromAgentId) {
       data.fromAgentId = agentId;
     }
 

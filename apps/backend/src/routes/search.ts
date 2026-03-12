@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { agents } from '@phonebook/database';
 import { db } from '@phonebook/database';
-import { like, or, desc, sql } from 'drizzle-orm';
+import { like, or, desc, sql } from '@phonebook/database';
 
 export async function searchRouter(fastify: FastifyInstance) {
   // Full-text search using PostgreSQL
@@ -30,9 +30,11 @@ export async function searchRouter(fastify: FastifyInstance) {
       .from(agents)
       .$dynamic();
 
-    // Use ILIKE for simple search (can be enhanced with tsvector)
-    const nameMatch = like(agents.name, `%${q}%`);
-    const descMatch = like(agents.description, `%${q}%`);
+    // Escape LIKE wildcards (% and _) to prevent unintended matching
+    const escapeLike = (s: string) => s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+    const safeQ = escapeLike(q);
+    const nameMatch = like(agents.name, `%${safeQ}%`);
+    const descMatch = like(agents.description, `%${safeQ}%`);
     
     // For categories, we need to use a different approach
     const conditions = [or(nameMatch, descMatch)];
@@ -106,8 +108,10 @@ export async function searchRouter(fastify: FastifyInstance) {
     searchText = searchText.replace(/\d+\.?\d*\+?\s*reputation/gi, '').trim();
 
     if (searchText.length >= 2) {
-      const nameMatch = like(agents.name, `%${searchText}%`);
-      const descMatch = like(agents.description, `%${searchText}%`);
+      const escapeLike = (s: string) => s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+      const safeSearch = escapeLike(searchText);
+      const nameMatch = like(agents.name, `%${safeSearch}%`);
+      const descMatch = like(agents.description, `%${safeSearch}%`);
       conditions.push(or(nameMatch, descMatch));
     }
 

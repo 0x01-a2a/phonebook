@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { deadDropMessages, agents } from '@phonebook/database';
 import { db } from '@phonebook/database';
-import { eq, desc, and, isNull, lt } from 'drizzle-orm';
+import { eq, desc, and, isNull, lt } from '@phonebook/database';
 import { z } from 'zod';
 import { randomBytes, createCipheriv, createDecipheriv } from 'crypto';
+import { requireAgentAuth } from '../auth.js';
 
 const createMessageSchema = z.object({
   toAgentId: z.string().uuid(),
@@ -16,14 +17,11 @@ const createMessageSchema = z.object({
 const ENCRYPTION_KEY = process.env.DEAD_DROP_KEY || randomBytes(32).toString('hex');
 
 export async function deadDropRouter(fastify: FastifyInstance) {
-  // Get messages for an agent
-  fastify.get('/inbox', async (request, reply) => {
-    const agentId = request.headers['x-agent-id'] as string;
-    
-    if (!agentId) {
-      reply.code(401);
-      return { error: 'Agent ID required' };
-    }
+  // Get messages for an agent (requires auth)
+  fastify.get('/inbox', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
+    const agentId = (request as any).agent.id;
 
     const messages = await db.select({
       id: deadDropMessages.id,
@@ -43,15 +41,12 @@ export async function deadDropRouter(fastify: FastifyInstance) {
     return { messages };
   });
 
-  // Send a dead drop message
-  fastify.post('/send', async (request, reply) => {
-    const fromAgentId = request.headers['x-agent-id'] as string;
+  // Send a dead drop message (requires auth)
+  fastify.post('/send', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
+    const fromAgentId = (request as any).agent.id;
     const data = createMessageSchema.parse(request.body);
-
-    if (!fromAgentId) {
-      reply.code(401);
-      return { error: 'Agent ID required' };
-    }
 
     // Check if recipient exists in agents table
     const [recipient] = await db.select({ id: agents.id })
@@ -79,15 +74,12 @@ export async function deadDropRouter(fastify: FastifyInstance) {
     return { success: true, messageId: message.id };
   });
 
-  // Mark message as read
-  fastify.patch('/:id/read', async (request, reply) => {
+  // Mark message as read (requires auth)
+  fastify.patch('/:id/read', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const agentId = request.headers['x-agent-id'] as string;
-
-    if (!agentId) {
-      reply.code(401);
-      return { error: 'Agent ID required' };
-    }
+    const agentId = (request as any).agent.id;
 
     const [updated] = await db.update(deadDropMessages)
       .set({ 
@@ -110,15 +102,12 @@ export async function deadDropRouter(fastify: FastifyInstance) {
     return { success: true };
   });
 
-  // Delete message
-  fastify.delete('/:id', async (request, reply) => {
+  // Delete message (requires auth)
+  fastify.delete('/:id', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const agentId = request.headers['x-agent-id'] as string;
-
-    if (!agentId) {
-      reply.code(401);
-      return { error: 'Agent ID required' };
-    }
+    const agentId = (request as any).agent.id;
 
     const [deleted] = await db.delete(deadDropMessages)
       .where(

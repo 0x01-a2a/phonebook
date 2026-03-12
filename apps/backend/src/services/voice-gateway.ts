@@ -14,7 +14,7 @@
 
 import { agents } from '@phonebook/database';
 import { db } from '@phonebook/database';
-import { eq } from 'drizzle-orm';
+import { eq } from '@phonebook/database';
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
 const ELEVENLABS_API_URL = 'https://api.elevenlabs.io/v1';

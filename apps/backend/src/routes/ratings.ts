@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { ratings, agents } from '@phonebook/database';
 import { db, schema } from '@phonebook/database';
-import { eq, desc, and, sql } from 'drizzle-orm';
+import { eq, desc, and, sql } from '@phonebook/database';
 import { z } from 'zod';
+import { requireAgentAuth } from '../auth.js';
 
 const createRatingSchema = z.object({
   agentId: z.string().uuid(),
@@ -65,10 +66,12 @@ export async function ratingsRouter(fastify: FastifyInstance) {
     };
   });
 
-  // Create a rating
-  fastify.post('/', async (request, reply) => {
+  // Create a rating (requires auth)
+  fastify.post('/', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
     const data = createRatingSchema.parse(request.body);
-    const raterId = (request.headers['x-agent-id'] as string) || data.agentId; // In production, get from auth
+    const raterId = (request as any).agent.id;
 
     // Check if agents exist
     const [targetAgent, raterAgent] = await Promise.all([

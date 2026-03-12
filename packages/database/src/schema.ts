@@ -43,6 +43,10 @@ export const agents = pgTable('agents', {
   featured: boolean('featured').default(false),
   claimToken: varchar('claim_token', { length: 64 }).unique(),
   claimStatus: varchar('claim_status', { length: 20 }).default('unclaimed'),
+  claimEmailCode: varchar('claim_email_code', { length: 10 }), // 6-digit verification code
+  claimEmailCodeExpires: timestamp('claim_email_code_expires'),
+  claimTweetCode: varchar('claim_tweet_code', { length: 12 }), // Code to post in tweet (set when email verified)
+  agentSecretHash: varchar('agent_secret_hash', { length: 255 }), // bcrypt hash of API secret
   ownerWallet: varchar('owner_wallet', { length: 64 }),
   ownerEmail: varchar('owner_email', { length: 255 }),
   claimedAt: timestamp('claimed_at'),

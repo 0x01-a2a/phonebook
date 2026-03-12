@@ -2,19 +2,22 @@ import type { FastifyInstance } from 'fastify';
 import twilio from 'twilio';
 import { z } from 'zod';
 import { routeSmsToAgent, sendReply } from '../services/twilio-bridge.js';
+import { requireAgentAuth } from '../auth.js';
 
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || '';
 const TWILIO_WEBHOOK_BASE = process.env.TWILIO_WEBHOOK_BASE || '';
 
-/** Validate Twilio webhook signature (skip if no token configured) */
+/** Validate Twilio webhook signature. In production, never skip. */
 function validateTwilioSignature(
   url: string,
   body: Record<string, string>,
   signature: string,
 ): boolean {
-  if (!TWILIO_AUTH_TOKEN) return true; // skip validation in dev
+  if (!TWILIO_AUTH_TOKEN) {
+    if (process.env.NODE_ENV === 'production') return false;
+    return true; // skip validation in dev only
+  }
   if (!signature) return false;
-
   return twilio.validateRequest(TWILIO_AUTH_TOKEN, signature, url, body);
 }
 
@@ -92,14 +95,16 @@ export async function twilioRouter(fastify: FastifyInstance) {
     return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(responseMessage)}</Message></Response>`;
   });
 
-  // Agent reply API — send message back to human via SMS/WhatsApp
+  // Agent reply API — send message back to human via SMS/WhatsApp (requires agent auth)
   const replySchema = z.object({
     replyTo: z.string().min(1),
     message: z.string().min(1),
     channel: z.enum(['sms', 'whatsapp']),
   });
 
-  fastify.post('/reply', async (request, reply) => {
+  fastify.post('/reply', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
     const parsed = replySchema.safeParse(request.body);
     if (!parsed.success) {
       reply.code(400);

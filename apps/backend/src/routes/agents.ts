@@ -1,10 +1,13 @@
 import type { FastifyInstance } from 'fastify';
-import { agents } from '@phonebook/database';
-import { db, schema } from '@phonebook/database';
-import { eq, desc, asc, sql, and } from 'drizzle-orm';
+import { agents, db, schema, eq, desc, asc, sql, and } from '@phonebook/database';
 import { z } from 'zod';
 import crypto, { randomUUID } from 'crypto';
+import bcrypt from 'bcryptjs';
 import { emitActivity } from './events.js';
+import { requireAgentOwnership } from '../auth.js';
+import { verifySolanaClaimSignature, buildClaimMessage } from '../verify-solana.js';
+import { sendClaimVerificationEmail } from '../services/send-email.js';
+import { verifyTweetContainsCode } from '../services/verify-tweet.js';
 
 const registerAgentSchema = z.object({
   name: z.string().min(1).max(40),
@@ -107,17 +110,17 @@ export async function agentsRouter(fastify: FastifyInstance) {
     };
   });
 
-  // List pending (unverified) agents for human approval panel
+  // List agents pending claim (for verify page — no sensitive data, no contactWebhook/contactEmail)
   fastify.get('/pending', async () => {
     const pending = await db.select({
       id: agents.id,
       name: agents.name,
       description: agents.description,
       categories: agents.categories,
-      contactWebhook: agents.contactWebhook,
-      contactEmail: agents.contactEmail,
+      phoneNumber: agents.phoneNumber,
       status: agents.status,
       verified: agents.verified,
+      claimStatus: agents.claimStatus,
       createdAt: agents.createdAt,
     })
       .from(agents)
@@ -206,6 +209,10 @@ export async function agentsRouter(fastify: FastifyInstance) {
     const claimToken = generateClaimToken();
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
+    // Generate API secret (64 chars hex) - shown only once at registration
+    const agentSecret = crypto.randomBytes(32).toString('hex');
+    const agentSecretHash = await bcrypt.hash(agentSecret, 10);
+
     // Generate UUID first, then derive virtual number deterministically from it
     const agentId = randomUUID();
     const phoneNumber = getVirtualNumberFromAgentId(agentId);
@@ -220,6 +227,7 @@ export async function agentsRouter(fastify: FastifyInstance) {
       verified: false,
       claimToken,
       claimStatus: 'unclaimed',
+      agentSecretHash,
     }).returning();
     const newAgent = (rows as any[])[0];
 
@@ -232,14 +240,17 @@ export async function agentsRouter(fastify: FastifyInstance) {
     reply.code(201);
     return {
       ...newAgent,
+      agentSecret, // ⚠️ Only returned once - store securely!
       claimToken,
       claimUrl: `${baseUrl}/claim/${claimToken}`,
-      important: 'Send the claimUrl to your human owner. They must verify ownership to activate your agent.',
+      important: 'Store agentSecret securely. Use it as Authorization: Bearer <agentSecret> or X-Agent-Secret for API calls. Send claimUrl to your human owner to verify.',
     };
   });
 
-  // Update agent
-  fastify.patch('/:id', async (request, reply) => {
+  // Update agent (requires auth + ownership)
+  fastify.patch('/:id', {
+    preHandler: requireAgentOwnership,
+  }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const data = updateAgentSchema.parse(request.body);
 
@@ -256,8 +267,10 @@ export async function agentsRouter(fastify: FastifyInstance) {
     return updated;
   });
 
-  // Update agent status
-  fastify.patch('/:id/status', async (request, reply) => {
+  // Update agent status (requires auth + ownership)
+  fastify.patch('/:id/status', {
+    preHandler: requireAgentOwnership,
+  }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const { status } = request.body as { status: 'online' | 'offline' | 'busy' | 'maintenance' };
 
@@ -295,8 +308,10 @@ export async function agentsRouter(fastify: FastifyInstance) {
     return updated;
   });
 
-  // Update pixel banner
-  fastify.patch('/:id/banner', async (request, reply) => {
+  // Update pixel banner (requires auth + ownership)
+  fastify.patch('/:id/banner', {
+    preHandler: requireAgentOwnership,
+  }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const { pixelBannerFrames, pixelBannerGif } = request.body as {
       pixelBannerFrames?: typeof agents.pixelBannerFrames,
@@ -325,8 +340,10 @@ export async function agentsRouter(fastify: FastifyInstance) {
     return updated;
   });
 
-  // Delete agent
-  fastify.delete('/:id', async (request, reply) => {
+  // Delete agent (requires auth + ownership)
+  fastify.delete('/:id', {
+    preHandler: requireAgentOwnership,
+  }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
     const deleted = (await db.delete(agents)
@@ -356,6 +373,7 @@ export async function agentsRouter(fastify: FastifyInstance) {
       status: agents.status,
       verified: agents.verified,
       claimStatus: agents.claimStatus,
+      claimTweetCode: agents.claimTweetCode,
       createdAt: agents.createdAt,
     })
       .from(agents)
@@ -367,20 +385,37 @@ export async function agentsRouter(fastify: FastifyInstance) {
       return { error: 'Invalid or expired claim token' };
     }
 
-    return { agent: agent[0] };
+    const a = agent[0];
+    return {
+      agent: a,
+      messageToSign: buildClaimMessage(a.id),
+      claimTweetCode: a.claimTweetCode,
+    };
   });
 
-  // Claim an agent — human proves ownership via wallet signature or email
+  // Claim an agent — multi-step: email → tweet → wallet (or direct wallet)
   fastify.post('/claim/:token', async (request, reply) => {
     const { token } = request.params as { token: string };
     const body = request.body as {
-      method: 'wallet' | 'email';
+      action?: 'send_email_verification' | 'verify_email' | 'verify_tweet';
+      method?: 'wallet' | 'email';
+      email?: string;
+      code?: string;
+      tweetUrl?: string;
       walletAddress?: string;
       signature?: string;
-      email?: string;
     };
 
-    const existing = await db.select({ id: agents.id, name: agents.name, verified: agents.verified, claimStatus: agents.claimStatus })
+    const existing = await db.select({
+      id: agents.id,
+      name: agents.name,
+      phoneNumber: agents.phoneNumber,
+      verified: agents.verified,
+      claimStatus: agents.claimStatus,
+      claimEmailCode: agents.claimEmailCode,
+      claimEmailCodeExpires: agents.claimEmailCodeExpires,
+      claimTweetCode: agents.claimTweetCode,
+    })
       .from(agents)
       .where(eq(agents.claimToken, token))
       .limit(1);
@@ -390,20 +425,110 @@ export async function agentsRouter(fastify: FastifyInstance) {
       return { error: 'Invalid or expired claim token' };
     }
 
-    if (existing[0].claimStatus === 'claimed' || existing[0].verified) {
+    const agent = existing[0];
+    if (agent.claimStatus === 'claimed' || agent.verified) {
       reply.code(409);
       return { error: 'Agent already claimed and verified' };
     }
 
+    // ─── Action: send_email_verification ───
+    if (body.action === 'send_email_verification') {
+      if (!body.email || !body.email.includes('@')) {
+        reply.code(400);
+        return { error: 'Valid email required' };
+      }
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+      await db.update(agents)
+        .set({
+          ownerEmail: body.email,
+          claimEmailCode: code,
+          claimEmailCodeExpires: expires,
+          updatedAt: new Date(),
+        })
+        .where(eq(agents.claimToken, token));
+
+      const { ok, error } = await sendClaimVerificationEmail(body.email, agent.name, code);
+      if (!ok && process.env.RESEND_API_KEY) {
+        reply.code(500);
+        return { error: error || 'Failed to send email' };
+      }
+      const devCode = !process.env.RESEND_API_KEY && process.env.CLAIM_EMAIL_DEV ? code : undefined;
+      return { success: true, ...(devCode && { devCode }) };
+    }
+
+    // ─── Action: verify_email ───
+    if (body.action === 'verify_email') {
+      if (!body.code || body.code.length !== 6) {
+        reply.code(400);
+        return { error: '6-digit code required' };
+      }
+      const [row] = await db.select({
+        claimEmailCode: agents.claimEmailCode,
+        claimEmailCodeExpires: agents.claimEmailCodeExpires,
+      })
+        .from(agents)
+        .where(eq(agents.claimToken, token))
+        .limit(1);
+      if (!row || row.claimEmailCode !== body.code) {
+        reply.code(400);
+        return { error: 'Invalid or expired code' };
+      }
+      if (row.claimEmailCodeExpires && new Date() > row.claimEmailCodeExpires) {
+        reply.code(400);
+        return { error: 'Code expired. Request a new one.' };
+      }
+      const tweetCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+      await db.update(agents)
+        .set({
+          claimStatus: 'email_verified',
+          claimEmailCode: null,
+          claimEmailCodeExpires: null,
+          claimTweetCode: tweetCode,
+          updatedAt: new Date(),
+        })
+        .where(eq(agents.claimToken, token));
+      return { success: true, claimTweetCode: tweetCode };
+    }
+
+    // ─── Action: verify_tweet ───
+    if (body.action === 'verify_tweet') {
+      const tweetCode = agent.claimTweetCode || agent.phoneNumber?.replace(/\D/g, '').slice(-6);
+      if (!tweetCode) {
+        reply.code(400);
+        return { error: 'Complete email verification first' };
+      }
+      if (process.env.TWITTER_BEARER_TOKEN) {
+        if (!body.tweetUrl?.trim()) {
+          reply.code(400);
+          return { error: 'Tweet URL required. Post the tweet with the code and paste its URL here.' };
+        }
+        const verified = await verifyTweetContainsCode(body.tweetUrl, tweetCode);
+        if (!verified) {
+          reply.code(400);
+          return { error: 'Tweet not found or does not contain the verification code. Post the tweet and paste its URL.' };
+        }
+      }
+      await db.update(agents)
+        .set({
+          claimStatus: 'twitter_verified',
+          updatedAt: new Date(),
+        })
+        .where(eq(agents.claimToken, token));
+      return { success: true };
+    }
+
+    // ─── Method: wallet (final step) ───
     if (body.method === 'wallet') {
       if (!body.walletAddress || !body.signature) {
         reply.code(400);
         return { error: 'walletAddress and signature are required for wallet verification' };
       }
-
-      // For Solana: the signature proves the human controls this wallet.
-      // In production, verify the signature against the expected message.
-      // For now we accept any valid-looking wallet + signature pair.
+      const agentId = agent.id;
+      if (!verifySolanaClaimSignature(body.walletAddress, body.signature, agentId)) {
+        reply.code(400);
+        return { error: 'Invalid signature. Sign the exact message shown in the claim page.' };
+      }
       const updated = (await db.update(agents)
         .set({
           verified: true,
@@ -414,24 +539,21 @@ export async function agentsRouter(fastify: FastifyInstance) {
         })
         .where(eq(agents.claimToken, token))
         .returning() as any[])[0];
-
       emitActivity('agent_verified', {
         agentId: updated.id,
         name: updated.name,
         method: 'wallet',
         wallet: body.walletAddress.slice(0, 8) + '...',
       });
-
       return { success: true, agent: updated, method: 'wallet' };
     }
 
+    // ─── Method: email (legacy — immediate verify without code) ───
     if (body.method === 'email') {
       if (!body.email) {
         reply.code(400);
         return { error: 'email is required for email verification' };
       }
-
-      // Mark as pending email verification — in production, send a confirmation email
       const updated = (await db.update(agents)
         .set({
           verified: true,
@@ -442,53 +564,12 @@ export async function agentsRouter(fastify: FastifyInstance) {
         })
         .where(eq(agents.claimToken, token))
         .returning() as any[])[0];
-
-      emitActivity('agent_verified', {
-        agentId: updated.id,
-        name: updated.name,
-        method: 'email',
-      });
-
+      emitActivity('agent_verified', { agentId: updated.id, name: updated.name, method: 'email' });
       return { success: true, agent: updated, method: 'email' };
     }
 
     reply.code(400);
-    return { error: 'method must be "wallet" or "email"' };
-  });
-
-  // Legacy verify (admin only — keep for internal use)
-  fastify.post('/:id/verify', async (request, reply) => {
-    const { id } = request.params as { id: string };
-
-    const updated = (await db.update(agents)
-      .set({ verified: true, claimStatus: 'claimed', updatedAt: new Date() })
-      .where(eq(agents.id, id))
-      .returning() as any[])[0];
-
-    if (!updated) {
-      reply.code(404);
-      return { error: 'Agent not found' };
-    }
-
-    emitActivity('agent_verified', { agentId: id, name: updated.name });
-    return updated;
-  });
-
-  // Reject an agent
-  fastify.post('/:id/reject', async (request, reply) => {
-    const { id } = request.params as { id: string };
-
-    const deleted = (await db.delete(agents)
-      .where(and(eq(agents.id, id), eq(agents.verified, false)))
-      .returning() as any[])[0];
-
-    if (!deleted) {
-      reply.code(404);
-      return { error: 'Agent not found or already verified' };
-    }
-
-    emitActivity('agent_rejected', { agentId: id, name: deleted.name });
-    return { success: true };
+    return { error: 'Provide action (send_email_verification, verify_email, verify_tweet) or method (wallet, email)' };
   });
 
   // Get agent trust graph

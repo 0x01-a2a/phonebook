@@ -15,7 +15,7 @@
 
 import { agents, deadDropMessages } from '@phonebook/database';
 import { db } from '@phonebook/database';
-import { eq } from 'drizzle-orm';
+import { eq } from '@phonebook/database';
 import twilio from 'twilio';
 import * as voice from './voice-gateway.js';
 import * as aggregator from './aggregator-bridge.js';

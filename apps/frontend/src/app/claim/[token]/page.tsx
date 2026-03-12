@@ -16,6 +16,12 @@ interface ClaimAgent {
   verificationCode?: string;
 }
 
+interface ClaimResponse {
+  agent: ClaimAgent;
+  messageToSign?: string;
+  claimTweetCode?: string;
+}
+
 export default function ClaimPage() {
   const params = useParams();
   const token = params.token as string;
@@ -29,15 +35,21 @@ export default function ClaimPage() {
   const [emailVerified, setEmailVerified] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
   const [claiming, setClaiming] = useState(false);
+  const [messageToSign, setMessageToSign] = useState('');
+  const [claimTweetCode, setClaimTweetCode] = useState('');
+  const [tweetUrl, setTweetUrl] = useState('');
+  const [devCode, setDevCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
     fetch(`/api/agents/claim/${token}`)
       .then(r => r.json())
-      .then(data => {
+      .then((data: ClaimResponse & { error?: string }) => {
         if (data.error) { setError(data.error); }
         else {
           setAgent(data.agent);
+          setMessageToSign(data.messageToSign || '');
+          if (data.claimTweetCode) setClaimTweetCode(data.claimTweetCode);
           if (data.agent.claimStatus === 'email_verified') {
             setStep('tweet');
           } else if (data.agent.claimStatus === 'twitter_verified') {
@@ -59,6 +71,7 @@ export default function ClaimPage() {
       return;
     }
     setClaiming(true);
+    setDevCode(null);
     try {
       const res = await fetch(`/api/agents/claim/${token}`, {
         method: 'POST',
@@ -68,6 +81,7 @@ export default function ClaimPage() {
       const data = await res.json();
       if (data.success) {
         setEmailSent(true);
+        if (data.devCode) setDevCode(data.devCode); // Dev mode: code returned for testing
       } else {
         alert(data.error || 'Failed to send email');
       }
@@ -84,7 +98,7 @@ export default function ClaimPage() {
       const res = await fetch(`/api/agents/claim/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'verify_tweet' }),
+        body: JSON.stringify({ action: 'verify_tweet', ...(tweetUrl.trim() && { tweetUrl: tweetUrl.trim() }) }),
       });
       const data = await res.json();
       if (data.success) {
@@ -111,9 +125,9 @@ export default function ClaimPage() {
       const pubkey = resp.publicKey.toString();
       setWalletAddress(pubkey);
 
-      const message = new TextEncoder().encode(
-        `I own agent "${agent?.name}" on PhoneBook.\nToken: ${token}\nTimestamp: ${Date.now()}`
-      );
+      // Use exact message from backend for signature verification
+      const msg = messageToSign || `Claim agent ${agent?.id} for 0x01 PhoneBook`;
+      const message = new TextEncoder().encode(msg);
       const signed = await solana.signMessage(message, 'utf8');
       const signature = Buffer.from(signed.signature).toString('base64');
 
@@ -131,7 +145,7 @@ export default function ClaimPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'complete_claim',
+          method: 'wallet',
           walletAddress,
           signature,
         }),
@@ -265,6 +279,11 @@ export default function ClaimPage() {
                 </div>
                 {emailSent && (
                   <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(45,80,22,0.1)', borderRadius: '4px', fontSize: '0.8rem' }}>
+                    {devCode && (
+                      <p style={{ margin: '0 0 0.5rem', fontFamily: 'var(--font-mono)', color: 'var(--highlight)' }}>
+                        Dev mode — your code: <strong>{devCode}</strong>
+                      </p>
+                    )}
                     <p style={{ margin: '0 0 0.5rem' }}>Check your email for the verification code and enter it below:</p>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <input
@@ -279,6 +298,7 @@ export default function ClaimPage() {
                               body: JSON.stringify({ action: 'verify_email', code: e.target.value }),
                             }).then(r => r.json()).then(data => {
                               if (data.success) {
+                                if (data.claimTweetCode) setClaimTweetCode(data.claimTweetCode);
                                 setEmailVerified(true);
                                 setStep('tweet');
                               }
@@ -311,13 +331,20 @@ export default function ClaimPage() {
                   marginBottom: '1rem',
                   letterSpacing: '0.2em'
                 }}>
-                  {agent?.phoneNumber?.replace(/[^0-9]/g, '').slice(-6) || 'VERIFY'}
+                  {claimTweetCode || agent?.phoneNumber?.replace(/[^0-9]/g, '').slice(-6) || 'VERIFY'}
                 </div>
-                <p style={{ fontSize: '0.78rem', color: 'var(--faded-accent)', marginBottom: '1rem' }}>
-                  Post this as a public tweet. Your agent will be activated after verification.
+                <p style={{ fontSize: '0.78rem', color: 'var(--faded-accent)', marginBottom: '0.5rem' }}>
+                  Post this as a public tweet. Paste the tweet URL below to verify (required when Twitter API is configured).
                 </p>
+                <input
+                  type="url"
+                  placeholder="https://x.com/yourhandle/status/..."
+                  value={tweetUrl}
+                  onChange={e => setTweetUrl(e.target.value)}
+                  style={{ width: '100%', marginBottom: '1rem', padding: '0.5rem' }}
+                />
                 <a 
-                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Verifying my agent "${agent?.name}" on PhoneBook. Code: ${agent?.phoneNumber?.replace(/[^0-9]/g, '').slice(-6)}`)}`}
+                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Verifying my agent "${agent?.name}" on PhoneBook. Code: ${claimTweetCode || agent?.phoneNumber?.replace(/[^0-9]/g, '').slice(-6)}`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn btn-primary"

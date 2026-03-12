@@ -1,6 +1,6 @@
 import { ratings, agents } from '@phonebook/database';
 import { db, schema } from '@phonebook/database';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql } from '@phonebook/database';
 
 const DAMPING_FACTOR = 0.85;
 const MAX_ITERATIONS = 50;
