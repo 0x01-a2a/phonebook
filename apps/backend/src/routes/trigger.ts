@@ -2,6 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import * as trigger from '../services/trigger-gateway.js';
 import { requireAgentAuth } from '../auth.js';
+import { db } from '@phonebook/database';
+import { deviceTriggers, pendingJobs, agents } from '@phonebook/database';
+import { eq, desc } from '@phonebook/database';
 
 const registerDeviceSchema = z.object({
   agentId: z.string().uuid(),
@@ -137,6 +140,56 @@ export async function triggerRouter(fastify: FastifyInstance) {
 
     // In production, update wake event with acknowledgment
     return { success: true, eventId };
+  });
+
+  // List all registered devices (public, for dashboard)
+  fastify.get('/devices', async (request, reply) => {
+    try {
+      const rows = await db
+        .select({
+          id: deviceTriggers.id,
+          agentId: deviceTriggers.agentId,
+          agentName: agents.name,
+          deviceType: deviceTriggers.deviceType,
+          isActive: deviceTriggers.isActive,
+          lastSeen: deviceTriggers.lastSeen,
+          batteryLevel: deviceTriggers.batteryLevel,
+          capabilities: deviceTriggers.capabilities,
+          minJobPayment: deviceTriggers.minJobPayment,
+          region: deviceTriggers.region,
+        })
+        .from(deviceTriggers)
+        .leftJoin(agents, eq(deviceTriggers.agentId, agents.id))
+        .orderBy(desc(deviceTriggers.updatedAt));
+      return { devices: rows };
+    } catch (error) {
+      reply.code(500);
+      return { error: 'Failed to list devices' };
+    }
+  });
+
+  // List recent jobs (public, for dashboard)
+  fastify.get('/jobs', async (request, reply) => {
+    try {
+      const rows = await db
+        .select({
+          id: pendingJobs.id,
+          fromAgentId: pendingJobs.fromAgentId,
+          toAgentId: pendingJobs.toAgentId,
+          jobType: pendingJobs.jobType,
+          payload: pendingJobs.payload,
+          status: pendingJobs.status,
+          priority: pendingJobs.priority,
+          createdAt: pendingJobs.createdAt,
+        })
+        .from(pendingJobs)
+        .orderBy(desc(pendingJobs.createdAt))
+        .limit(50);
+      return { jobs: rows };
+    } catch (error) {
+      reply.code(500);
+      return { error: 'Failed to list jobs' };
+    }
   });
 
   // Health check for gateway

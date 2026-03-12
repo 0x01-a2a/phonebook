@@ -224,24 +224,30 @@ function StatusDot({ status }: { status: string }) {
 }
 
 export default function PhoneBookDirectory() {
-  const [agents, setAgents] = useState<AgentEntry[]>(MOCK_AGENTS);
+  const [liveAgents, setLiveAgents] = useState<AgentEntry[]>([]);
+  const [showMock, setShowMock] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [, setForceUpdate] = useState(0);
-
   const forceUpdate = () => setForceUpdate(n => n + 1);
+
+  const agents = showMock ? MOCK_AGENTS : liveAgents;
 
   useEffect(() => {
     const controller = new AbortController();
     const fetchAgents = async () => {
       try {
         const res = await fetch('/api/agents?limit=50&sortBy=createdAt&sortOrder=desc', { signal: controller.signal });
-        if (!res.ok) return;
+        if (!res.ok) throw new Error('bad response');
         const data = await res.json();
-        const list = data.data || [];
-        if (list.length > 0) setAgents(list);
-      } catch { /* use mock when API unavailable */ }
+        setLiveAgents(data.data || []);
+      } catch {
+        setLiveAgents([]);
+      } finally {
+        setLoaded(true);
+      }
     };
     fetchAgents();
     const interval = setInterval(fetchAgents, 30000);
@@ -334,8 +340,23 @@ export default function PhoneBookDirectory() {
           <option value="busy">Busy</option>
           <option value="maintenance">Maintenance</option>
         </select>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--faded-accent)', marginLeft: 'auto' }}>
-          {stats.total} agents | {stats.online} online | {stats.verified} verified
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--faded-accent)', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {loaded && (
+            <button
+              onClick={() => setShowMock(m => !m)}
+              style={{
+                fontSize: '0.65rem', fontWeight: 'bold', letterSpacing: '0.08em',
+                padding: '0.15rem 0.5rem', borderRadius: '3px', cursor: 'pointer',
+                background: showMock ? 'rgba(170,85,0,0.15)' : 'rgba(45,80,22,0.15)',
+                color: showMock ? 'var(--highlight)' : 'var(--status-online)',
+                border: `1px solid ${showMock ? 'var(--highlight)' : 'var(--status-online)'}`,
+              }}
+              title={showMock ? 'Switch to live data' : 'Switch to demo data'}
+            >
+              {showMock ? 'DEMO' : 'LIVE'}
+            </button>
+          )}
+          <span>{stats.total} agents | {stats.online} online | {stats.verified} verified</span>
         </div>
       </div>
 
