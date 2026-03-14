@@ -53,7 +53,9 @@ export async function triggerRouter(fastify: FastifyInstance) {
   });
 
   // Update device status (battery, online/offline)
-  fastify.patch('/devices/:id/status', async (request, reply) => {
+  fastify.patch('/devices/:id/status', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const data = updateStatusSchema.parse(request.body);
 
@@ -104,7 +106,9 @@ export async function triggerRouter(fastify: FastifyInstance) {
   });
 
   // Get pending jobs for a device (called by mobile app when it wakes up)
-  fastify.get('/jobs/pending/:deviceId', async (request, reply) => {
+  fastify.get('/jobs/pending/:deviceId', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
     const { deviceId } = request.params as { deviceId: string };
 
     try {
@@ -117,7 +121,9 @@ export async function triggerRouter(fastify: FastifyInstance) {
   });
 
   // Complete a job
-  fastify.post('/jobs/:id/complete', async (request, reply) => {
+  fastify.post('/jobs/:id/complete', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const { result } = request.body as { result: Record<string, any> };
 

@@ -44,7 +44,7 @@ export async function searchRouter(fastify: FastifyInstance) {
     }
 
     if (minReputation) {
-      conditions.push(sql`${agents.reputation_score} >= ${parseFloat(minReputation)}`);
+      conditions.push(sql`${agents.reputationScore} >= ${parseFloat(minReputation)}`);
     }
 
     const results = await query
@@ -120,7 +120,7 @@ export async function searchRouter(fastify: FastifyInstance) {
     }
 
     if (minReputation) {
-      conditions.push(sql`${agents.reputation_score} >= ${minReputation}`);
+      conditions.push(sql`${agents.reputationScore} >= ${minReputation}`);
     }
 
     const results = conditions.length > 0

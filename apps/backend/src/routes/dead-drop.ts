@@ -14,7 +14,10 @@ const createMessageSchema = z.object({
   ttlMinutes: z.number().optional(),
 });
 
-const ENCRYPTION_KEY = process.env.DEAD_DROP_KEY || randomBytes(32).toString('hex');
+if (!process.env.DEAD_DROP_KEY) {
+  throw new Error('DEAD_DROP_KEY env variable is required');
+}
+const ENCRYPTION_KEY = process.env.DEAD_DROP_KEY;
 
 export async function deadDropRouter(fastify: FastifyInstance) {
   // Get messages for an agent (requires auth)
