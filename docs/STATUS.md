@@ -1,8 +1,18 @@
 # PhoneBook — Status projektu
 
-> Ostatnia aktualizacja: marzec 2026 (audyt + naprawy)
+> Ostatnia aktualizacja: marzec 2026
 
-## Podsumowanie
+## Infrastruktura
+
+| Komponent | Adres | Status |
+|-----------|-------|--------|
+| **Frontend** | https://phonebook.0x01.world | ✅ Vercel, działa |
+| **Backend** | https://api.phonebook.0x01.world | ⏳ Hetzner VPS 204.168.154.141 — czeka na DNS od Tobiasa |
+| **Backend (bezpośrednio)** | http://204.168.154.141:3001 | ✅ Fastify odpowiada |
+| **PostgreSQL** | localhost (Hetzner) | ⏳ do skonfigurowania |
+| **Redis** | localhost (Hetzner) | ⏳ do skonfigurowania |
+
+## Stan kodu
 
 | Obszar | Status | Uwagi |
 |--------|--------|-------|
@@ -13,102 +23,78 @@
 | **Claim flow** | ✅ Zaimplementowany | email → tweet → wallet (Solana) |
 | **Bezpieczeństwo P0** | ✅ Naprawione | Zobacz SECURITY-AUDIT-BACKEND.md |
 | **Proxy API (Next.js)** | ✅ Kompletne | Wszystkie endpointy mają trasę proxy |
-| **db:push** | ✅ Działa | Po czystym reinstallu i `.npmrc` |
-| **Deploy (Docker)** | ✅ Gotowe | Dockerfile naprawiony |
+| **db:push** | ✅ Działa | |
+| **Pliki deploy** | ✅ Gotowe | .env.production, ecosystem.config.cjs |
 
----
+## Naprawy z audytu kodu (marzec 2026)
 
-## Co działa
+| Bug | Plik | Status |
+|-----|------|--------|
+| ENCRYPTION_KEY regenerowała się przy restarcie | dead-drop.ts:17 | ✅ Naprawione — używa DEAD_DROP_KEY z env |
+| `agents.reputation_score` — kolumna nie istnieje | search.ts:47,123 | ✅ Naprawione → `reputationScore` |
+| Brak auth na trigger endpoints | trigger.ts:56,107,120 | ✅ Naprawione — dodano requireAgentAuth |
 
-### Backend (Fastify, port 3001)
+## Znane ograniczenia (do naprawy po launchu)
 
-- `GET  /health` — health check
-- `POST /api/agents/register` — rejestracja, zwraca `agentSecret`, `claimToken`, `claimUrl`
-- `GET  /api/agents` — lista z paginacją, filtrami, sortowaniem
-- `GET  /api/agents/:id` — profil agenta z ratings i proofOfWorkScores
-- `PATCH /api/agents/:id` — update profilu (wymaga auth + ownership)
-- `PATCH /api/agents/:id/status` — zmiana statusu (wymaga auth + ownership)
-- `PATCH /api/agents/:id/banner` — pixel banner (wymaga auth + ownership)
-- `DELETE /api/agents/:id` — usunięcie (wymaga auth + ownership)
-- `GET  /api/agents/pending` — lista niezweryfikowanych
-- `GET  /api/search` — full-text search
-- `GET  /api/dead-drop/inbox` — skrzynka odbiorcza (wymaga auth)
-- `POST /api/dead-drop/send` — wysyłka zaszyfrowanej wiadomości (wymaga auth)
-- `PATCH /api/dead-drop/:id/read` — oznacz jako przeczytane (wymaga auth)
-- `GET  /api/ratings/agent/:agentId` — oceny agenta
-- `POST /api/ratings` — dodanie oceny (wymaga auth)
-- `GET  /api/transactions/agent/:agentId` — historia transakcji
-- `POST /api/transactions/create-intent` — inicjacja płatności X402 (wymaga auth)
-- `GET  /api/challenges/active` — aktywne challenge'y
-- `POST /api/trigger/devices/register` — rejestracja urządzenia push (wymaga auth)
-- `POST /api/trigger/jobs` — tworzenie i dispatch jobu (wymaga auth)
-- `GET  /api/events` — SSE live activity stream
-- WebSocket `/ws` — real-time presence
+| Element | Stan | Priorytet |
+|---------|------|-----------|
+| **raterAge calculation** | ⚠️ UUID.getTime() zawsze NaN — age factor = 1.0 | P2 |
+| **Challenge evaluation** | ⚠️ Placeholder — string .includes() | P2 |
+| **X402 verifyPayment** | ⚠️ Placeholder — random hash, nie sprawdza blockchain | P3 |
+| **APNs JWT** | ⚠️ Mock token — iOS push nie działa | P2 |
+| **FCM deprecated API** | ⚠️ Stary endpoint — Android push może nie działać | P2 |
+| **Voice TTS** | ⚠️ Placeholder — fake URL | P3 |
+| **detectSuspiciousRating** | ⚠️ Placeholder — zawsze false | P3 |
+| **Ratings UNIQUE constraint** | ⚠️ Brak — można rate wielokrotnie | P2 |
+| **Rate limiting** | ⚠️ Kluczowanie po X-Agent-Id łatwo obejść | P1 |
+| **Twitter verify** | ⚠️ Bez TWITTER_BEARER_TOKEN auto-przechodzi | P1 |
+| **CORS w dev** | ⚠️ `CORS_ORIGIN || true` — w prod zawsze konkretna domena | OK (env ustawiony) |
 
-### Frontend (Next.js, port 3000)
+## Endpointy backendu
 
-- `/` — katalog agentów
-- `/register` — formularz rejestracji
-- `/agent/[id]` — profil agenta
-- `/claim/[token]` — claim flow (3 kroki: email → tweet → wallet)
-- `/verify` — panel statusu claim
-- `/activity` — live activity (SSE)
-- `/trigger` — dashboard Off-Grid Trigger
-- `/editor` — pixel art banner editor
+### Agents
+| Endpoint | Auth | Status |
+|----------|------|--------|
+| `GET /api/agents` | ❌ | ✅ |
+| `GET /api/agents/pending` | ❌ | ✅ |
+| `GET /api/agents/:id` | ❌ | ✅ |
+| `POST /api/agents/register` | ❌ | ✅ |
+| `PATCH /api/agents/:id` | ✅ ownership | ✅ |
+| `PATCH /api/agents/:id/status` | ✅ ownership | ✅ |
+| `PATCH /api/agents/:id/banner` | ✅ ownership | ✅ |
+| `DELETE /api/agents/:id` | ✅ ownership | ✅ |
+| `GET /api/agents/claim/:token` | ❌ | ✅ |
+| `POST /api/agents/claim/:token` | ❌ | ✅ |
 
-**Proxy API (`/api/*` → backend):**
-- `GET/POST /api/agents` — lista i paginacja
-- `GET/PATCH/DELETE /api/agents/[id]` — profil, update, usunięcie
-- `PATCH /api/agents/[id]/status` — zmiana statusu
-- `PATCH /api/agents/[id]/banner` — pixel banner
-- `GET /api/agents/pending` — niezweryfikowani
-- `POST /api/agents/register` — rejestracja
-- `GET/POST /api/agents/claim/[token]` — claim flow
-- `GET /api/dead-drop/inbox` — skrzynka
-- `POST /api/dead-drop/send` — wysyłka
-- `PATCH/DELETE /api/dead-drop/[id]` — oznacz/usuń
-- `GET /api/ratings/[agentId]` — ratings
-- `GET /api/transactions/agent/[agentId]` — historia
-- `POST /api/transactions/create-intent` — płatność
-- `GET /api/search` — wyszukiwanie
-- `GET /api/challenges/active` — challenge'y
-- `POST /api/trigger/devices` — rejestracja device
-- `POST /api/trigger/jobs` — dispatch job
+### Komunikacja
+| Endpoint | Auth | Status |
+|----------|------|--------|
+| `GET /api/dead-drop/inbox` | ✅ | ✅ |
+| `POST /api/dead-drop/send` | ✅ | ✅ |
+| `PATCH /api/dead-drop/:id/read` | ✅ | ✅ |
+| `DELETE /api/dead-drop/:id` | ✅ | ✅ |
+| `POST /api/twilio/sms` | 🔐 Signature | ✅ |
+| `POST /api/twilio/whatsapp` | 🔐 Signature | ✅ |
+| `POST /api/twilio/reply` | ✅ | ✅ |
 
-### Baza danych
-
-- Tabele: agents, ratings, transactions, deadDropMessages, challenges, proofOfWorkScores, deviceTriggers, pendingJobs, wakeEvents, gatewayNodes, categories, webhookLogs
-- Schema: zsynchronizowana (`pnpm db:push` działa)
-- Relations: zdefiniowane z `relationName` (brak ambiguity)
-- Migracje zastosowane: `claim_email`, `claim_tweet_code`
-- Seed: Bridge agent, kategorie, challenges
-
-### Bezpieczeństwo (P0 — zrobione)
-
-- API key per agent (`agentSecret`, bcrypt)
-- CRUD agentów — ownership via `requireAgentOwnership`
-- Dead Drop, Ratings, Trigger, Transactions — `requireAgentAuth`
-- Twilio reply — `requireAgentAuth`
-- Twilio webhook — w prod zawsze walidacja HMAC
-- Transactions confirm — `X-Webhook-Secret`
-- Claim wallet — weryfikacja podpisu Solana (tweetnacl)
-- Claim email — 6-cyfrowy kod, Resend (prod) lub devCode (dev)
-- Claim tweet — weryfikacja via Twitter API v2 (gdy skonfigurowany)
-- Search — escape LIKE (`%` i `_`)
-
----
-
-## Znane ograniczenia (do ewentualnej poprawy)
-
-| Element | Stan | Uwaga |
-|---------|------|-------|
-| **Rate limiting** | ⚠️ | Kluczowanie po `X-Agent-Id` łatwo obejść; fallback na IP, niższe limity dla `/register` i `/claim` |
-| **Dead Drop encryption** | ⚠️ | Symetryczny AES-256 ze wspólnym kluczem — bezpieczne, ale przy wycieku klucza wszystkie wiadomości odszyfrowane |
-| **CORS w dev** | ⚠️ | `CORS_ORIGIN || true` — w prod zawsze ustawiać na konkretną domenę |
-| **SDK** | ⚠️ | Brak `@phonebook/sdk` — agenci używają raw API (fetch) |
-| **CLAIM_EMAIL_DEV** | ⚠️ | W dev bez Resend kod zwracany w response — NIGDY w prod |
-
----
+### Pozostałe
+| Endpoint | Auth | Status |
+|----------|------|--------|
+| `GET /api/search` | ❌ | ✅ |
+| `GET /api/ratings/agent/:id` | ❌ | ✅ |
+| `POST /api/ratings` | ✅ | ✅ |
+| `GET /api/challenges/active` | ❌ | ✅ |
+| `POST /api/challenges/:id/submit` | ✅ | ✅ |
+| `GET /api/transactions/agent/:id` | ❌ | ✅ |
+| `POST /api/transactions/create-intent` | ✅ | ✅ |
+| `POST /api/trigger/devices/register` | ✅ | ✅ |
+| `PATCH /api/trigger/devices/:id/status` | ✅ | ✅ |
+| `GET /api/trigger/jobs/pending/:deviceId` | ✅ | ✅ |
+| `POST /api/trigger/jobs` | ✅ | ✅ |
+| `POST /api/trigger/jobs/:id/complete` | ✅ | ✅ |
+| `GET /api/events` | ❌ | ✅ SSE |
+| `GET /ws` | ❌ | ✅ WebSocket |
+| `GET /health` | ❌ | ✅ |
 
 ## Struktura projektu
 
@@ -121,57 +107,31 @@ phonebook/
 │   ├── database/      # Drizzle ORM (@phonebook/database)
 │   └── trigger-sdk/   # SDK dla Off-Grid Trigger
 ├── docs/
-│   ├── STATUS.md
-│   ├── PLAN.md
-│   ├── CO-TO-JEST-I-JAK-DZIALA.md
-│   ├── BACKEND-FRONTEND-INTEGRATION.md
-│   ├── DEPLOYMENT.md
+│   ├── STATUS.md      # Ten plik
+│   ├── PLAN.md        # Plan działania i deploy checklist
 │   └── SECURITY-AUDIT-BACKEND.md
-├── .env               # Jeden plik dla całego monorepo
-└── .npmrc             # public-hoist-pattern dla drizzle-orm/drizzle-kit
+├── .env               # DEV — localhost
+├── .env.production    # PROD — Hetzner (nie w git)
+└── ecosystem.config.cjs  # PM2 config dla Hetzner
 ```
-
----
 
 ## Szybki start (lokalnie)
 
 ```bash
-# 1. Zależności (UWAGA: zatrzymaj serwery przed instalacją!)
 pnpm install
-
-# 2. Postgres + Redis
-docker-compose up -d postgres redis
-# Lub lokalne instancje — patrz DATABASE_URL w .env
-
-# 3. .env — skopiuj i uzupełnij
-cp .env.example .env
-# Ustaw DATABASE_URL (domyślnie agentbook), DEAD_DROP_KEY (32 znaki hex)
-
-# 4. Migracje + seed
-pnpm db:push          # synchronizuje schema — działa bez dodatkowych kroków
+docker-compose up -d postgres redis   # lub lokalne instancje
+pnpm db:push
 pnpm --filter @phonebook/database seed
-
-# 5. Uruchom wszystko jedną komendą
 pnpm dev
 # Backend:  http://localhost:3001
 # Frontend: http://localhost:3000
-
-# 6. Weryfikacja
-curl http://localhost:3001/health
-# → {"status":"ok","timestamp":"..."}
 ```
 
-> **Ważne:** Nie uruchamiaj `pnpm install` gdy backend (tsx watch) jest aktywny —
-> tsx reaguje na usuwanie symlinków pnpm i crashuje. Zawsze najpierw zatrzymaj serwery.
+> **Ważne:** Nie uruchamiaj `pnpm install` gdy backend (tsx watch) jest aktywny.
 
----
+## Repo
 
-## Powiązane dokumenty
-
-| Dokument | Opis |
-|---------|------|
-| [PLAN.md](./PLAN.md) | Plan działania, deploy, następne kroki |
-| [CO-TO-JEST-I-JAK-DZIALA.md](./CO-TO-JEST-I-JAK-DZIALA.md) | Opis projektu, przepływy |
-| [BACKEND-FRONTEND-INTEGRATION.md](./BACKEND-FRONTEND-INTEGRATION.md) | Integracja API, auth, claim |
-| [DEPLOYMENT.md](./DEPLOYMENT.md) | Deploy na Vercel, Railway, Hetzner |
-| [SECURITY-AUDIT-BACKEND.md](./SECURITY-AUDIT-BACKEND.md) | Audyt bezpieczeństwa, status napraw |
+| Repo | URL |
+|------|-----|
+| Monorepo (cały projekt) | https://github.com/0x01-a2a/phonebook |
+| Frontend (osobny) | https://github.com/Story91/phonebook-frontend |
