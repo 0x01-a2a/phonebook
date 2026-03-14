@@ -18,22 +18,14 @@
 
 ---
 
-## Faza 1.5: Krytyczne bugi znalezione w audycie kodu (DO NAPRAWY przed prod)
+## Faza 1.5: Krytyczne bugi znalezione w audycie kodu — ZROBIONE ✅
 
-### 🔴 CRITICAL — bez tego produkcja się posypie
+### 🔴 CRITICAL — naprawione i zdeploy'owane na Hetzner
 
-- [ ] **ENCRYPTION_KEY w dead-drop.ts (linia 17)** — `randomBytes(32)` regeneruje się przy każdym restarcie serwera! Stare wiadomości Dead Drop nieczytelne po restarcie.
-  - **Fix:** wczytywać z `process.env.DEAD_DROP_KEY` (już mamy w .env) — zmienić inicjalizację
-  - Plik: `apps/backend/src/routes/dead-drop.ts:17`
-
-- [ ] **SQL Error w search.ts** — `agents.reputation_score` nie istnieje jako kolumna, powinno być `agents.reputationScore`
-  - Plik: `apps/backend/src/routes/search.ts:47,123`
-
-- [ ] **Brak auth na trigger endpointach** — każdy może zmienić battery/status, complete job
-  - `PATCH /api/trigger/devices/:id/status` — brak auth
-  - `GET /api/trigger/jobs/pending/:deviceId` — brak auth
-  - `POST /api/trigger/jobs/:id/complete` — brak auth
-  - Plik: `apps/backend/src/routes/trigger.ts:56,107,120`
+- [x] **ENCRYPTION_KEY w dead-drop.ts** — używa `DEAD_DROP_KEY` z env, serwer nie wystartuje bez klucza
+- [x] **SQL Error w search.ts** — `reputation_score` → `reputationScore`
+- [x] **Brak auth na trigger endpointach** — `requireAgentAuth` na devices/status, jobs/pending, jobs/complete
+- [x] **TWILIO_WEBHOOK_BASE** — poprawiony na Hetznerze (`/api/twilio` na końcu)
 
 ### 🟠 HIGH — naprawić przed launchem
 
@@ -80,7 +72,7 @@
 
 ---
 
-## Faza 2: Deploy (czeka na DNS od Tobiasa)
+## Faza 2: Deploy — PRAWIE GOTOWE ✅
 
 ### Infrastruktura
 ```
@@ -95,27 +87,28 @@ Redis               →  lokalny na Hetznerze
 A    api.phonebook    204.168.154.141    TTL: 300
 ```
 
-### Kolejność deploymentu
+### Co już zrobione na Hetznerze ✅
 
-1. **Tobias dodaje DNS** — `api.phonebook.0x01.world → 204.168.154.141`
-2. **Hetzner Cloud Firewall** — otworzyć TCP 80, 443 (Caddy potrzebuje 80 dla Let's Encrypt)
-3. **SSH na serwer** — setup Node.js (nvm), pnpm, PM2, Caddy, PostgreSQL, Redis
-4. **Sklonuj repo** — `/opt/phonebook`, `pnpm install`, `pnpm build`
-5. **`.env.production`** — skopiuj na serwer jako `/opt/phonebook/.env`
-6. **`pnpm db:push` + seed** — synchronizacja schema
-7. **PM2** — `pm2 start ecosystem.config.cjs && pm2 save && pm2 startup`
-8. **Caddy** — `/etc/caddy/Caddyfile`: `api.phonebook.0x01.world { reverse_proxy localhost:3001 }`
-9. **Weryfikacja** — `curl https://api.phonebook.0x01.world/health`
-10. **Vercel env vars** — `API_URL=https://api.phonebook.0x01.world`, `NEXT_PUBLIC_API_URL=https://api.phonebook.0x01.world`
-11. **Twilio webhooks** — `https://api.phonebook.0x01.world/api/twilio/sms` i `/whatsapp`
-12. **Redeploy Vercel**
+- [x] Node.js v22, pnpm, PM2, Caddy, PostgreSQL 16, Redis — zainstalowane
+- [x] Repo sklonowane w `/opt/phonebook`, git aktualny
+- [x] `.env` produkcyjny na serwerze (DATABASE_URL, REDIS_URL, CORS_ORIGIN, DEAD_DROP_KEY itd.)
+- [x] `pnpm db:push` + seed — Bridge agent + kategorie + 3 challenges
+- [x] PM2 uruchomiony (`phonebook-api` via `tsx/dist/cli.cjs`) — `{"status":"ok"}`
+- [x] Caddy skonfigurowany (`api.phonebook.0x01.world { reverse_proxy localhost:3001 }`)
+- [x] UFW firewall — porty 22/80/443 aktywne
 
-### Pliki gotowe
-- [x] `.env.production` — wszystkie zmienne produkcyjne
-- [x] `ecosystem.config.cjs` — PM2 config
-- [ ] Fix ENCRYPTION_KEY (CRITICAL — przed deployem!)
-- [ ] Fix search.ts SQL error (CRITICAL — przed deployem!)
-- [ ] Fix trigger auth (CRITICAL — przed deployem!)
+### Co czeka na DNS (Tobias) ⏳
+
+1. **Tobias dodaje rekord A:** `api.phonebook.0x01.world → 204.168.154.141`
+2. **Caddy wyda cert automatycznie** (Let's Encrypt): `systemctl reload caddy`
+3. **Vercel env vars** (dashboard → Settings → Environment Variables):
+   - `API_URL=https://api.phonebook.0x01.world`
+   - `NEXT_PUBLIC_API_URL=https://api.phonebook.0x01.world`
+   - → Redeploy
+4. **Twilio console** (numer +13854756347 → Messaging):
+   - SMS webhook: `https://api.phonebook.0x01.world/api/twilio/sms`
+   - WhatsApp webhook: `https://api.phonebook.0x01.world/api/twilio/whatsapp`
+5. **Weryfikacja końcowa:** `curl https://api.phonebook.0x01.world/health`
 
 ---
 
@@ -147,19 +140,22 @@ A    api.phonebook    204.168.154.141    TTL: 300
 ### Kod
 - [x] `pnpm dev` — OK
 - [x] `pnpm db:push` — OK
-- [ ] `pnpm build` — sprawdź czy frontend buduje się bez błędów TS
+- [x] `pnpm build` (backend) — zero błędów TS
+- [x] `pnpm build` (frontend) — zero błędów
 
-### Backend (Hetzner)
-- [ ] DATABASE_URL (lokalny postgres)
-- [ ] REDIS_URL (lokalny redis)
-- [ ] CORS_ORIGIN=https://phonebook.0x01.world
-- [ ] FRONTEND_URL=https://phonebook.0x01.world
-- [ ] DEAD_DROP_KEY (już w .env.production)
-- [ ] CLAIM_EMAIL_DEV=false
-- [ ] pnpm db:push + seed
-- [ ] PM2 + Caddy
+### Backend (Hetzner) — GOTOWE
+- [x] DATABASE_URL (lokalny postgres — baza `phonebook`)
+- [x] REDIS_URL (lokalny redis)
+- [x] CORS_ORIGIN=https://phonebook.0x01.world
+- [x] FRONTEND_URL=https://phonebook.0x01.world
+- [x] DEAD_DROP_KEY — skonfigurowany
+- [x] CLAIM_EMAIL_DEV=false
+- [x] pnpm db:push + seed
+- [x] PM2 (phonebook-api, online)
+- [x] Caddy (skonfigurowany, czeka na DNS dla certa)
+- [x] UFW 22/80/443
 
-### Frontend (Vercel)
+### Frontend (Vercel) — czeka na DNS
 - [ ] API_URL=https://api.phonebook.0x01.world
 - [ ] NEXT_PUBLIC_API_URL=https://api.phonebook.0x01.world
 - [ ] Redeploy
