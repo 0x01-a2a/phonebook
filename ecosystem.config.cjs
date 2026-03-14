@@ -3,12 +3,16 @@
 //   pm2 start ecosystem.config.cjs
 //   pm2 save
 //   pm2 startup  (uruchom wydrukowaną komendę sudo jako root)
+//
+// Używamy tsx zamiast skompilowanego dist/ bo @phonebook/database
+// nie ma osobnego build step (main: "./src/index.ts")
 module.exports = {
   apps: [
     {
       name: 'phonebook-api',
-      script: 'dist/index.js',
-      cwd: '/opt/phonebook/apps/backend',
+      script: 'node_modules/.bin/tsx',
+      args: 'apps/backend/src/index.ts',
+      cwd: '/opt/phonebook',
       instances: 1,
       exec_mode: 'fork',
       watch: false,
