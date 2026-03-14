@@ -397,8 +397,9 @@ export async function agentsRouter(fastify: FastifyInstance) {
   fastify.post('/claim/:token', async (request, reply) => {
     const { token } = request.params as { token: string };
     const body = request.body as {
-      action?: 'send_email_verification' | 'verify_email' | 'verify_tweet';
+      action?: 'send_email_verification' | 'verify_email' | 'verify_tweet' | 'init_tweet';
       method?: 'wallet' | 'email';
+      finalize?: boolean;
       email?: string;
       code?: string;
       tweetUrl?: string;
@@ -491,12 +492,27 @@ export async function agentsRouter(fastify: FastifyInstance) {
       return { success: true, claimTweetCode: tweetCode };
     }
 
+    // ─── Action: init_tweet (generate tweet code without requiring email) ───
+    if (body.action === 'init_tweet') {
+      let tweetCode = agent.claimTweetCode;
+      if (!tweetCode) {
+        tweetCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+        await db.update(agents)
+          .set({
+            claimTweetCode: tweetCode,
+            updatedAt: new Date(),
+          })
+          .where(eq(agents.claimToken, token));
+      }
+      return { success: true, claimTweetCode: tweetCode };
+    }
+
     // ─── Action: verify_tweet ───
     if (body.action === 'verify_tweet') {
       const tweetCode = agent.claimTweetCode || agent.phoneNumber?.replace(/\D/g, '').slice(-6);
       if (!tweetCode) {
         reply.code(400);
-        return { error: 'Complete email verification first' };
+        return { error: 'Initialize tweet verification first' };
       }
       if (process.env.TWITTER_BEARER_TOKEN) {
         if (!body.tweetUrl?.trim()) {
@@ -508,6 +524,20 @@ export async function agentsRouter(fastify: FastifyInstance) {
           reply.code(400);
           return { error: 'Tweet not found or does not contain the verification code. Post the tweet and paste its URL.' };
         }
+      }
+      // When used as standalone method (finalize=true), claim the agent directly
+      if (body.finalize) {
+        const updated = (await db.update(agents)
+          .set({
+            verified: true,
+            claimStatus: 'claimed',
+            claimedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(agents.claimToken, token))
+          .returning() as any[])[0];
+        emitActivity('agent_verified', { agentId: updated.id, name: updated.name, method: 'tweet' });
+        return { success: true, agent: updated, method: 'tweet' };
       }
       await db.update(agents)
         .set({
