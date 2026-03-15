@@ -93,7 +93,13 @@ export async function agentsRouter(fastify: FastifyInstance) {
       })
         .from(agents)
         .where(whereClause)
-        .orderBy(sortOrder === 'asc' ? asc(agents.createdAt) : desc(agents.createdAt))
+        .orderBy(
+          sortBy === 'reputationScore'
+            ? (sortOrder === 'asc' ? asc(agents.reputationScore) : desc(agents.reputationScore))
+            : sortBy === 'name'
+            ? (sortOrder === 'asc' ? asc(agents.name) : desc(agents.name))
+            : (sortOrder === 'asc' ? asc(agents.createdAt) : desc(agents.createdAt))
+        )
         .limit(limitNum)
         .offset(offset),
       db.select({ count: sql<number>`count(*)::int` }).from(agents).where(whereClause),

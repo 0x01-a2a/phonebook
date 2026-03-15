@@ -100,8 +100,8 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | Caddy SSL cert (auto, po DNS) | DNS | ✅ |
 | `TWITTER_BEARER_TOKEN` — weryfikacja tweetów | — | ✅ skonfigurowany |
 | Email `noreply@phonebook.0x01.world` (Resend + domena) | — | ✅ |
-| Vercel env vars: `API_URL=https://api.phonebook.0x01.world` | — | ⏳ sprawdzić |
-| Twilio webhooks w konsoli Twilio | — | ⏳ ustawić |
+| Vercel env vars: `API_URL=https://api.phonebook.0x01.world` | — | ✅ |
+| Twilio webhooks w konsoli Twilio | — | ✅ SMS + WhatsApp skonfigurowane |
 
 ---
 

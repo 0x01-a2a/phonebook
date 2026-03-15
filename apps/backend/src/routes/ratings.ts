@@ -79,7 +79,7 @@ export async function ratingsRouter(fastify: FastifyInstance) {
         .from(agents)
         .where(eq(agents.id, data.agentId))
         .limit(1),
-      db.select({ id: agents.id, trustScore: agents.trustScore })
+      db.select({ id: agents.id, trustScore: agents.trustScore, createdAt: agents.createdAt })
         .from(agents)
         .where(eq(agents.id, raterId))
         .limit(1),
@@ -108,7 +108,7 @@ export async function ratingsRouter(fastify: FastifyInstance) {
     const finalWeight = baseWeight * mutualPenalty;
 
     // Check account age (anti-gaming)
-    const raterAge = new Date().getTime() - raterAgent[0].id.getTime();
+    const raterAge = new Date().getTime() - new Date(raterAgent[0].createdAt).getTime();
     const ageFactor = raterAge < 24 * 60 * 60 * 1000 ? 0.1 : 1.0;
 
     const [newRating] = await db.insert(ratings).values({

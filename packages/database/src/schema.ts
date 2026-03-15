@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, real, jsonb, pgEnum, integer } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean, real, jsonb, pgEnum, integer, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Enums
@@ -80,7 +80,9 @@ export const ratings = pgTable('ratings', {
   decayFactor: real('decay_factor').default(1.0),
   isMutual: boolean('is_mutual').default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (table) => ({
+  uniqueRating: uniqueIndex('ratings_agent_rater_dimension_unique').on(table.agentId, table.raterId, table.dimension),
+}));
 
 export const ratingsRelations = relations(ratings, ({ one }) => ({
   agent: one(agents, {
