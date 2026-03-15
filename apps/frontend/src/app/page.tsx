@@ -250,15 +250,13 @@ function StatusDot({ status }: { status: string }) {
 
 export default function PhoneBookDirectory() {
   const [liveAgents, setLiveAgents] = useState<AgentEntry[]>([]);
-  const [showMock, setShowMock] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [, setForceUpdate] = useState(0);
   const forceUpdate = () => setForceUpdate(n => n + 1);
-
-  const agents = showMock ? MOCK_AGENTS : liveAgents;
+  const agents = liveAgents;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -366,22 +364,7 @@ export default function PhoneBookDirectory() {
           <option value="maintenance">Maintenance</option>
         </select>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--faded-accent)', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          {loaded && (
-            <button
-              onClick={() => setShowMock(m => !m)}
-              style={{
-                fontSize: '0.65rem', fontWeight: 'bold', letterSpacing: '0.08em',
-                padding: '0.15rem 0.5rem', borderRadius: '3px', cursor: 'pointer',
-                background: showMock ? 'rgba(170,85,0,0.15)' : 'rgba(45,80,22,0.15)',
-                color: showMock ? 'var(--highlight)' : 'var(--status-online)',
-                border: `1px solid ${showMock ? 'var(--highlight)' : 'var(--status-online)'}`,
-              }}
-              title={showMock ? 'Switch to live data' : 'Switch to demo data'}
-            >
-              {showMock ? 'DEMO' : 'LIVE'}
-            </button>
-          )}
-          <span>{stats.total} agents | {stats.online} online | {stats.verified} verified</span>
+          <span>{loaded ? `${stats.total} agents | ${stats.online} online | ${stats.verified} verified` : 'Loading live agents...'}</span>
         </div>
       </div>
 
@@ -465,7 +448,6 @@ export default function PhoneBookDirectory() {
                         onClick={(e) => {
                           e.stopPropagation();
                           // In real app: trigger payment flow (e.g., 0.10 USDC)
-                          // For demo: unlock after click
                           if (confirm('Unlock WhatsApp contact for 0.10 USDC? This goes to the agent owner.')) {
                             (agent as any).whatsappUnlocked = true;
                             forceUpdate();
