@@ -389,6 +389,7 @@ export async function agentsRouter(fastify: FastifyInstance) {
       verified: agents.verified,
       claimStatus: agents.claimStatus,
       claimTweetCode: agents.claimTweetCode,
+      verifiedMethods: agents.verifiedMethods,
       createdAt: agents.createdAt,
     })
       .from(agents)
@@ -431,6 +432,7 @@ export async function agentsRouter(fastify: FastifyInstance) {
       claimEmailCode: agents.claimEmailCode,
       claimEmailCodeExpires: agents.claimEmailCodeExpires,
       claimTweetCode: agents.claimTweetCode,
+      verifiedMethods: agents.verifiedMethods,
     })
       .from(agents)
       .where(eq(agents.claimToken, token))
@@ -442,9 +444,12 @@ export async function agentsRouter(fastify: FastifyInstance) {
     }
 
     const agent = existing[0];
-    if (agent.claimStatus === 'claimed' || agent.verified) {
+    const existingMethods = (agent.verifiedMethods as string[]) ?? [];
+
+    // Block only if all 3 human methods already done
+    if (existingMethods.filter(m => m !== 'ed25519').length >= 3) {
       reply.code(409);
-      return { error: 'Agent already claimed and verified' };
+      return { error: 'All 3 verification methods already completed' };
     }
 
     // ─── Action: send_email_verification ───
@@ -542,13 +547,17 @@ export async function agentsRouter(fastify: FastifyInstance) {
       }
       // When used as standalone method (finalize=true), claim the agent directly
       if (body.finalize) {
+        if (existingMethods.includes('tweet')) {
+          reply.code(409); return { error: 'Tweet already verified' };
+        }
+        const newMethods = [...existingMethods, 'tweet'];
         const updated = (await db.update(agents)
           .set({
             verified: true,
             claimStatus: 'claimed',
             claimedAt: new Date(),
             updatedAt: new Date(),
-            verifiedMethods: ['tweet'],
+            verifiedMethods: newMethods,
           })
           .where(eq(agents.claimToken, token))
           .returning() as any[])[0];
@@ -570,11 +579,15 @@ export async function agentsRouter(fastify: FastifyInstance) {
         reply.code(400);
         return { error: 'walletAddress and signature are required for wallet verification' };
       }
+      if (existingMethods.includes('wallet')) {
+        reply.code(409); return { error: 'Wallet already verified' };
+      }
       const agentId = agent.id;
       if (!verifySolanaClaimSignature(body.walletAddress, body.signature, agentId)) {
         reply.code(400);
         return { error: 'Invalid signature. Sign the exact message shown in the claim page.' };
       }
+      const newMethods = [...existingMethods, 'wallet'];
       const updated = (await db.update(agents)
         .set({
           verified: true,
@@ -582,7 +595,7 @@ export async function agentsRouter(fastify: FastifyInstance) {
           ownerWallet: body.walletAddress,
           claimedAt: new Date(),
           updatedAt: new Date(),
-          verifiedMethods: ['wallet'],
+          verifiedMethods: newMethods,
         })
         .where(eq(agents.claimToken, token))
         .returning() as any[])[0];
@@ -601,6 +614,10 @@ export async function agentsRouter(fastify: FastifyInstance) {
         reply.code(400);
         return { error: 'email is required for email verification' };
       }
+      if (existingMethods.includes('email')) {
+        reply.code(409); return { error: 'Email already verified' };
+      }
+      const newMethods = [...existingMethods, 'email'];
       const updated = (await db.update(agents)
         .set({
           verified: true,
@@ -608,7 +625,7 @@ export async function agentsRouter(fastify: FastifyInstance) {
           ownerEmail: body.email,
           claimedAt: new Date(),
           updatedAt: new Date(),
-          verifiedMethods: ['email'],
+          verifiedMethods: newMethods,
         })
         .where(eq(agents.claimToken, token))
         .returning() as any[])[0];

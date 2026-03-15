@@ -12,6 +12,7 @@ interface ClaimAgent {
   status: string;
   verified: boolean;
   claimStatus: string;
+  verifiedMethods?: string[];
   createdAt: string;
 }
 
@@ -31,7 +32,6 @@ export default function ClaimPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [method, setMethod] = useState<ClaimMethod>('select');
-  const [complete, setComplete] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [messageToSign, setMessageToSign] = useState('');
 
@@ -48,7 +48,6 @@ export default function ClaimPage() {
 
   // Wallet state
   const [walletAddress, setWalletAddress] = useState('');
-  const [completedMethod, setCompletedMethod] = useState('');
 
   useEffect(() => {
     if (!token) return;
@@ -60,9 +59,7 @@ export default function ClaimPage() {
           setAgent(data.agent);
           setMessageToSign(data.messageToSign || '');
           if (data.claimTweetCode) setClaimTweetCode(data.claimTweetCode);
-          if (data.agent.verified || data.agent.claimStatus === 'claimed') {
-            setComplete(true);
-          }
+          // don't auto-redirect if claimed — let them add more methods
         }
       })
       .catch(() => setError('Failed to load claim information'))
@@ -115,8 +112,10 @@ export default function ClaimPage() {
         });
         const claimData = await claimRes.json();
         if (claimData.success) {
-          setCompletedMethod('email');
-          setComplete(true);
+          setAgent(a => a ? { ...a, verified: true, verifiedMethods: [...(a.verifiedMethods ?? []), 'email'] } : a);
+          setMethod('select');
+          setEmailSent(false);
+          setEmail('');
         }
       } else {
         alert(data.error || 'Invalid code');
@@ -163,8 +162,10 @@ export default function ClaimPage() {
       });
       const data = await res.json();
       if (data.success) {
-        setCompletedMethod('tweet');
-        setComplete(true);
+        setAgent(a => a ? { ...a, verified: true, verifiedMethods: [...(a.verifiedMethods ?? []), 'tweet'] } : a);
+        setMethod('select');
+        setTweetReady(false);
+        setTweetUrl('');
       } else {
         alert(data.error || 'Tweet verification failed');
       }
@@ -209,8 +210,9 @@ export default function ClaimPage() {
       });
       const data = await res.json();
       if (data.success) {
-        setCompletedMethod('wallet');
-        setComplete(true);
+        setAgent(a => a ? { ...a, verified: true, verifiedMethods: [...(a.verifiedMethods ?? []), 'wallet'] } : a);
+        setMethod('select');
+        setWalletAddress('');
       } else {
         alert(data.error || 'Wallet verification failed');
       }
@@ -257,54 +259,42 @@ export default function ClaimPage() {
     );
   }
 
-  // ─── COMPLETE ───
-  if (complete) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', textAlign: 'center' }}>
-        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✓</div>
-        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>{agent?.name} Verified</h1>
-        <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', color: 'var(--faded-accent)', marginBottom: '0.5rem' }}>
-          Ownership confirmed via {completedMethod === 'wallet' ? `Solana wallet (${walletAddress.slice(0, 8)}...)` : completedMethod === 'tweet' ? 'Twitter verification' : completedMethod === 'email' ? 'email verification' : 'verification'}
-        </p>
-        <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--status-online)', marginBottom: '2rem' }}>
-          Your agent is now active in the PhoneBook directory.
-        </p>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <a href={`/agent/${agent?.id}`} className="btn btn-primary" style={{ textDecoration: 'none' }}>View Agent Profile</a>
-          <a href="/" className="btn" style={{ textDecoration: 'none' }}>← Directory</a>
-        </div>
-      </div>
-    );
-  }
+  const verifiedMethods = agent?.verifiedMethods ?? [];
+  const humanDone = verifiedMethods.filter(m => m !== 'ed25519');
+  const allDone = humanDone.length >= 3;
 
-  const alreadyClaimed = agent?.claimStatus === 'claimed' || agent?.verified;
+  const isDone = (m: string) => verifiedMethods.includes(m);
 
   const methodCardStyle = (m: ClaimMethod) => ({
     padding: '1.5rem',
-    cursor: 'pointer' as const,
-    border: `2px solid ${method === m ? 'var(--highlight)' : 'transparent'}`,
+    cursor: isDone(m) ? 'default' as const : 'pointer' as const,
+    border: `2px solid ${isDone(m) ? 'var(--status-online)' : method === m ? 'var(--highlight)' : 'transparent'}`,
     transition: 'all 0.2s',
-    background: method === m ? 'rgba(212,168,83,0.08)' : undefined,
+    background: isDone(m) ? 'rgba(45,80,22,0.12)' : method === m ? 'rgba(212,168,83,0.08)' : undefined,
+    opacity: isDone(m) ? 0.75 : 1,
   });
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <header style={{ textAlign: 'center', padding: '2rem 1.5rem 1.5rem', borderBottom: '3px double var(--ink)' }}>
         <h1 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>
-          Claim Your Agent
+          {humanDone.length === 0 ? 'Claim Your Agent' : 'Verify Your Agent'}
         </h1>
         <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--faded-accent)', margin: '0.25rem 0 0' }}>
-          Choose one verification method to activate your agent
+          {allDone ? '🛡️ All 3 methods completed — maximum trust unlocked' : `${humanDone.length}/3 methods done — add more to increase trust`}
         </p>
       </header>
 
       <div style={{ flex: 1, maxWidth: '700px', width: '100%', margin: '0 auto', padding: '2rem 1.5rem' }}>
-        {alreadyClaimed ? (
+        {allDone ? (
           <div className="card" style={{ textAlign: 'center', padding: '2.5rem' }}>
-            <p style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>This agent has already been claimed.</p>
-            <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--faded-accent)' }}>
-              If you are the owner and need help, contact support.
-            </p>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🛡️</div>
+            <h2>{agent?.name}</h2>
+            <p style={{ color: 'var(--status-online)', marginBottom: '1.5rem' }}>All 3 verification methods completed — gold badge unlocked!</p>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <a href={`/agent/${agent?.id}`} className="btn btn-primary" style={{ textDecoration: 'none' }}>View Agent Profile</a>
+              <a href="/" className="btn" style={{ textDecoration: 'none' }}>← Directory</a>
+            </div>
           </div>
         ) : (
           <>
@@ -334,7 +324,7 @@ export default function ClaimPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
                   {/* Email Option */}
-                  <div className="card" style={methodCardStyle('email')} onClick={() => setMethod('email')}>
+                  <div className="card" style={methodCardStyle('email')} onClick={() => !isDone('email') && setMethod('email')}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <span style={{ fontSize: '1.5rem' }}>📧</span>
                       <div>
@@ -343,12 +333,14 @@ export default function ClaimPage() {
                           Receive a 6-digit code to your email and enter it to verify
                         </p>
                       </div>
-                      <span style={{ marginLeft: 'auto', fontSize: '1.2rem', color: 'var(--faded-accent)' }}>→</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '1.2rem', color: isDone('email') ? 'var(--status-online)' : 'var(--faded-accent)' }}>
+                        {isDone('email') ? '✓' : '→'}
+                      </span>
                     </div>
                   </div>
 
                   {/* Tweet Option */}
-                  <div className="card" style={methodCardStyle('tweet')} onClick={() => { setMethod('tweet'); initTweet(); }}>
+                  <div className="card" style={methodCardStyle('tweet')} onClick={() => !isDone('tweet') && (setMethod('tweet'), initTweet())}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <span style={{ fontSize: '1.5rem' }}>𝕏</span>
                       <div>
@@ -357,12 +349,14 @@ export default function ClaimPage() {
                           Post a verification tweet with your agent details and code
                         </p>
                       </div>
-                      <span style={{ marginLeft: 'auto', fontSize: '1.2rem', color: 'var(--faded-accent)' }}>→</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '1.2rem', color: isDone('tweet') ? 'var(--status-online)' : 'var(--faded-accent)' }}>
+                        {isDone('tweet') ? '✓' : '→'}
+                      </span>
                     </div>
                   </div>
 
                   {/* Wallet Option */}
-                  <div className="card" style={methodCardStyle('wallet')} onClick={() => setMethod('wallet')}>
+                  <div className="card" style={methodCardStyle('wallet')} onClick={() => !isDone('wallet') && setMethod('wallet')}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <span style={{ fontSize: '1.5rem' }}>👻</span>
                       <div>
@@ -371,7 +365,9 @@ export default function ClaimPage() {
                           Sign a message with your Phantom wallet to prove ownership
                         </p>
                       </div>
-                      <span style={{ marginLeft: 'auto', fontSize: '1.2rem', color: 'var(--faded-accent)' }}>→</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '1.2rem', color: isDone('wallet') ? 'var(--status-online)' : 'var(--faded-accent)' }}>
+                        {isDone('wallet') ? '✓' : '→'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -576,9 +572,14 @@ export default function ClaimPage() {
             )}
 
             {/* Info note */}
+            {method === 'select' && humanDone.length > 0 && (
+              <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+                <a href={`/agent/${agent?.id}`} className="btn btn-primary" style={{ textDecoration: 'none' }}>View Agent Profile →</a>
+              </div>
+            )}
             {method !== 'select' && (
               <div style={{ marginTop: '1.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--faded-accent)', lineHeight: 1.7, padding: '0 0.25rem', textAlign: 'center' }}>
-                Complete any one method to verify your agent. Each method independently proves ownership.
+                Each method independently proves ownership. Complete all 3 to unlock the 🛡️ gold badge.
               </div>
             )}
           </>
