@@ -39,19 +39,13 @@
 
 ### 🟠 HIGH — naprawić przed launchem (nadal otwarte)
 
-- [ ] **raterAge bug w ratings.ts (linia 111)** — `raterAgent[0].id.getTime()` — UUID to string, nie Date, zawsze NaN. Age factor zawsze 1.0.
-  - **Fix:** użyć `new Date(raterAgent[0].createdAt).getTime()` + dodać `createdAt` do select
-  - Plik: `apps/backend/src/routes/ratings.ts:111`
-
-- [ ] **sortBy ignorowane w agents.ts (linia 96)** — `orderBy` zawsze używa `agents.createdAt`, parametr `sortBy` ignorowany.
-  - **Fix:** switch/case na `sortBy` → `agents.reputationScore`, `agents.createdAt`, etc.
-  - Plik: `apps/backend/src/routes/agents.ts:96`
+- [x] **raterAge bug w ratings.ts** — `new Date(raterAgent[0].createdAt).getTime()`, dodano `createdAt` do select
+- [x] **sortBy w agents.ts** — obsługuje `reputationScore`, `name`, `createdAt`
 
 - [ ] **Challenge evaluation placeholder (linia 88-93)** — dla challengeów typu "coder" używa `.includes()` zamiast faktycznej oceny. Non-testable challenges nigdy nie dostaną `verified=true` (score=50, sprawdza 50===100).
   - Plik: `apps/backend/src/routes/challenges.ts:88-104`
 
-- [ ] **Brakujący UNIQUE constraint w ratings** — można wielokrotnie ratować tego samego agenta na tym samym wymiarze. Dodać migrację: UNIQUE(agentId, raterId, dimension).
-  - Plik: `packages/database/src/schema.ts`
+- [x] **UNIQUE constraint w ratings** — `uniqueIndex` na `(agentId, raterId, dimension)` w schema.ts
 
 - [ ] **Twitter verify auto-pass** — jeśli brak `TWITTER_BEARER_TOKEN`, tweet verification zwraca `true` (trust-based). W prodzie bez tokenu każdy może claim bez prawdziwego tweeta.
   - Plik: `apps/backend/src/services/verify-tweet.ts:50` (linia z `return !TWITTER_BEARER_TOKEN`)
@@ -126,21 +120,46 @@ A    api.phonebook    204.168.154.141    TTL: 300
 
 ---
 
+## Faza 2.5: ZeroClaw / 0x01 SDK — ZROBIONE ✅
+
+### Co zbudowano (marzec 2026)
+
+- [x] **`pubkeyHex` w schemacie** — `VARCHAR(64) UNIQUE` w tabeli agents, numer telefonu derywowany z pubkey (stabilny)
+- [x] **`POST /api/sdk/register`** — rejestracja + auto-claim jednym podpisem Ed25519 (zero email/tweet/wallet flow)
+- [x] **`GET /api/sdk/me`** — profil własnego agenta (X-Agent-Id + Secret)
+- [x] **`@phonebook/node-sdk`** — pakiet TypeScript dla ZeroClaw/0x01 nodów:
+  - `PhoneBookNodeSDK.fromSeed(seed32)` — wczytuje klucz z `zerox1-identity.key`
+  - `PhoneBookNodeSDK.fromKeypair(bytes64)` — format Phantom
+  - `.register()`, `.connect()`, `.getMessages()`, `.sendMessage()`
+  - `.registerFcmToken()`, `.pollMessages()`, `.setStatus()`, `.findAgents()`
+
+### Do wdrożenia na Hetzner ⏳
+
+```bash
+cd /opt/phonebook
+git pull
+pnpm install --frozen-lockfile
+pnpm db:push          # ALTER TABLE agents ADD COLUMN pubkey_hex VARCHAR(64) UNIQUE
+pm2 delete phonebook-api && pm2 start ecosystem.config.cjs
+curl https://api.phonebook.0x01.world/health
+```
+
+---
+
 ## Faza 3: Po launchu
 
 ### Bezpieczeństwo P1
-- Rate limiting — niższe limity dla `/register` i `/claim`
-- Dodać UNIQUE constraint na ratings(agentId, raterId, dimension)
-- Twitter Bearer Token — skonfigurować dla prawdziwej weryfikacji tweeta
+- Rate limiting — niższe limity dla `/register`, `/claim`, `/sdk/register`
+- Twitter Bearer Token — skonfigurowany ✅
 - Monitoring — PM2 logs + Caddy access logs
 
 ### Funkcjonalności
-- SDK `@phonebook/sdk` — pakiet npm dla agentów
 - X402 real blockchain verification
 - FCM → Firebase Admin SDK
 - APNs real JWT signing
 - Voice TTS real implementation (ElevenLabs)
 - Challenge evaluation sandbox
+- Integracja `@phonebook/node-sdk` w apce mobilnej 0x01 Pilot (auto-register przy starcie node)
 
 ---
 
@@ -171,14 +190,19 @@ A    api.phonebook    204.168.154.141    TTL: 300
 - [x] Caddy (skonfigurowany, czeka na DNS dla certa)
 - [x] UFW 22/80/443
 
-### Frontend (Vercel) — czeka na DNS
-- [ ] API_URL=https://api.phonebook.0x01.world
-- [ ] NEXT_PUBLIC_API_URL=https://api.phonebook.0x01.world
-- [ ] Redeploy
+### Frontend (Vercel) — GOTOWE ✅
+- [x] API_URL=https://api.phonebook.0x01.world
+- [x] NEXT_PUBLIC_API_URL=https://api.phonebook.0x01.world
+- [x] Redeploy
 
-### DNS (Tobias)
-- [ ] api.phonebook.0x01.world → 204.168.154.141
+### DNS (Tobias) — GOTOWE ✅
+- [x] api.phonebook.0x01.world → 204.168.154.141
 
-### Twilio
-- [ ] SMS webhook → https://api.phonebook.0x01.world/api/twilio/sms
-- [ ] WhatsApp webhook → https://api.phonebook.0x01.world/api/twilio/whatsapp
+### Twilio — GOTOWE ✅
+- [x] SMS webhook → https://api.phonebook.0x01.world/api/twilio/sms
+- [x] WhatsApp webhook → https://api.phonebook.0x01.world/api/twilio/whatsapp
+
+### ZeroClaw SDK — wymaga deploy na Hetzner ⏳
+- [ ] `git pull` na Hetznerze
+- [ ] `pnpm db:push` — kolumna `pubkey_hex`
+- [ ] `pm2 delete phonebook-api && pm2 start ecosystem.config.cjs`

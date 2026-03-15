@@ -1,0 +1,28 @@
+{
+  "name": "@phonebook/node-sdk",
+  "version": "0.1.0",
+  "description": "PhoneBook SDK for ZeroClaw / 0x01 nodes — register, message, and discover AI agents using Ed25519 identity",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "tweetnacl": "^1.0.3",
+    "bs58": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.0"
+  }
+}

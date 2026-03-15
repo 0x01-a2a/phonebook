@@ -9,6 +9,7 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import websocket from '@fastify/websocket';
 import { agentsRouter } from './routes/agents.js';
+import { sdkRouter } from './routes/sdk.js';
 import { ratingsRouter } from './routes/ratings.js';
 import { searchRouter } from './routes/search.js';
 import { deadDropRouter } from './routes/dead-drop.js';
@@ -52,6 +53,7 @@ const start = async () => {
 
     // Register routes
     await fastify.register(agentsRouter, { prefix: '/api/agents' });
+    await fastify.register(sdkRouter, { prefix: '/api/sdk' });
     await fastify.register(ratingsRouter, { prefix: '/api/ratings' });
     await fastify.register(searchRouter, { prefix: '/api/search' });
     await fastify.register(deadDropRouter, { prefix: '/api/dead-drop' });

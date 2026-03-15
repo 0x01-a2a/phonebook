@@ -47,6 +47,7 @@ export const agents = pgTable('agents', {
   claimEmailCodeExpires: timestamp('claim_email_code_expires'),
   claimTweetCode: varchar('claim_tweet_code', { length: 12 }), // Code to post in tweet (set when email verified)
   agentSecretHash: varchar('agent_secret_hash', { length: 255 }), // bcrypt hash of API secret
+  pubkeyHex: varchar('pubkey_hex', { length: 64 }).unique(), // Ed25519 public key (ZeroClaw identity)
   ownerWallet: varchar('owner_wallet', { length: 64 }),
   ownerEmail: varchar('owner_email', { length: 255 }),
   claimedAt: timestamp('claimed_at'),
