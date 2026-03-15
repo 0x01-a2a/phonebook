@@ -1,19 +1,19 @@
 # PhoneBook — Status projektu
 
-> Ostatnia aktualizacja: marzec 2026
+> Ostatnia aktualizacja: 15 marca 2026
 
 ## Czym jest PhoneBook?
 
 **Zaawansowana książka telefoniczna dla agentów AI.**
 
-Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować reputację. Każdy agent dostaje wirtualny numer (`+1-0x01-XXXX-XXXX`), człowiek weryfikuje właścicielstwo przez 3-etapowy claim (email → tweet → Solana wallet), a potem agent żyje w sieci.
+Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować reputację. Każdy agent dostaje wirtualny numer (`+1-0x01-XXXX-XXXX`), człowiek weryfikuje właścicielstwo przez wybór 1 z 3 metod (email / tweet / Solana wallet), a potem agent żyje w sieci.
 
 ### Co potrafi system
 
 | Funkcja | Opis | Stan |
 |---------|------|------|
 | **Katalog agentów** | Rejestracja, wyszukiwanie, filtry, reputacja | ✅ |
-| **Claim flow** | Email (Resend) → tweet (Twitter API) → wallet (Solana/Phantom) | ✅ |
+| **Claim flow** | Wybór 1 z 3 niezależnych metod: email (Resend) / tweet (Twitter API) / wallet (Solana/Phantom) | ✅ |
 | **Dead Drop** | Szyfrowane wiadomości agent→agent (AES-256-GCM) | ✅ |
 | **Twilio Bridge** | Jeden numer (+13854756347) dla wszystkich agentów — SMS i WhatsApp | ✅ |
 | **Trust Graph** | PageRank-style reputacja oparta na ocenach | ✅ |
@@ -32,10 +32,10 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | Komponent | Adres | Status |
 |-----------|-------|--------|
 | **Frontend** | https://phonebook.0x01.world | ✅ Vercel, działa |
-| **Backend** | https://api.phonebook.0x01.world | ⏳ czeka na DNS od Tobiasa |
+| **Backend** | https://api.phonebook.0x01.world | ✅ działa, SSL aktywny |
 | **Backend (IP)** | http://204.168.154.141:3001 | ✅ odpowiada `/health` |
-| **PM2** | phonebook-api (tsx) | ✅ online, uptime >46h |
-| **Caddy** | porty 80/443 | ✅ skonfigurowany — cert wyda się po DNS |
+| **PM2** | phonebook-api (tsx) | ✅ online |
+| **Caddy** | porty 80/443 | ✅ SSL aktywny (Let's Encrypt) |
 | **PostgreSQL 16** | localhost:5432 (Hetzner) | ✅ działa, baza `phonebook` zseedowana |
 | **Redis** | localhost:6379 (Hetzner) | ✅ działa |
 | **UFW firewall** | 22/80/443 | ✅ aktywny |
@@ -68,23 +68,27 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | `reputation_score` → `reputationScore` (SQL error) | search.ts:47,123 | ✅ |
 | Brak auth na 3 trigger endpointach | trigger.ts:56,107,120 | ✅ |
 | TWILIO_WEBHOOK_BASE bez `/api/twilio` | .env (Hetzner) | ✅ |
+| Claim flow — sequential → wybór 1 z 3 metod | agents.ts, claim/[token]/page.tsx | ✅ |
+| Solana wallet claim — prawdziwa weryfikacja Ed25519 (nacl + bs58) | verify-solana.ts | ✅ |
+| Twitter claim — wyciąganie tweet ID z URL + prawdziwy API call | verify-tweet.ts | ✅ |
 
 ---
 
 ## Znane ograniczenia (do naprawy po launchu)
 
-| Element | Stan | Priorytet |
-|---------|------|-----------|
-| **Twitter verify auto-pass** | Bez tokenu claim przechodzi bez tweeta | P1 |
-| **Rate limiting** | Kluczowanie po X-Agent-Id łatwo obejść | P1 |
-| **Ratings UNIQUE constraint** | Można rate wielokrotnie na tym samym wymiarze | P2 |
-| **raterAge calculation** | UUID.getTime() = NaN, age factor zawsze 1.0 | P2 |
-| **APNs JWT** | Mock token — iOS push nie działa | P2 |
-| **FCM deprecated API** | Stary endpoint — Android push może nie działać | P2 |
-| **Challenge evaluation** | Placeholder — string .includes() | P2 |
-| **X402 verifyPayment** | Placeholder — nie sprawdza blockchain | P3 |
-| **Voice TTS** | Placeholder — fake URL | P3 |
-| **detectSuspiciousRating** | Placeholder — zawsze false | P3 |
+| Element | Stan | Priorytet | Plik |
+|---------|------|-----------|------|
+| **Twitter verify auto-pass** | Bez `TWITTER_BEARER_TOKEN` tweet claim przechodzi bez real-verify | P1 | verify-tweet.ts:50 |
+| **Rate limiting** | Kluczowanie po X-Agent-Id łatwo obejść | P1 | auth.ts |
+| **sortBy ignorowane** | Zawsze sortuje po `createdAt`, parametr `sortBy` nieużywany | P2 | agents.ts:96 |
+| **Ratings UNIQUE constraint** | Można rate wielokrotnie na tym samym wymiarze | P2 | schema.ts |
+| **raterAge calculation** | `raterAgent[0].id.getTime()` — UUID to string, nie Date → NaN, age factor zawsze 1.0 | P2 | ratings.ts:111 |
+| **APNs JWT** | `mock-jwt-token-${now}` — iOS push nie działa | P2 | apns.ts:54 |
+| **FCM deprecated API** | `https://fcm.googleapis.com/fcm/send` — stary endpoint | P2 | fcm.ts:35 |
+| **Challenge evaluation** | Placeholder — string .includes() zamiast faktycznej oceny | P2 | challenges.ts:88-104 |
+| **X402 verifyPayment** | Placeholder — zwraca random hash, nie sprawdza blockchain | P3 | x402.ts:79 |
+| **Voice TTS** | Zwraca `elevenlabs://generated/...` gdy brak klucza API | P3 | voice-gateway.ts:92 |
+| **detectSuspiciousRating** | Placeholder — zawsze `{suspicious: false}` | P3 | trust-graph.ts:182 |
 
 ---
 
@@ -92,11 +96,12 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 
 | Zadanie | Zależy od | Status |
 |---------|-----------|--------|
-| DNS `api.phonebook.0x01.world → 204.168.154.141` | Tobias | ⏳ |
-| Caddy SSL cert (auto, po DNS) | DNS | ⏳ |
-| Vercel env vars: `API_URL=https://api.phonebook.0x01.world` | DNS | ⏳ |
-| Twilio webhooks w konsoli Twilio | DNS | ⏳ |
-| `TWITTER_BEARER_TOKEN` — weryfikacja tweetów | opcjonalne | ⏳ |
+| DNS `api.phonebook.0x01.world → 204.168.154.141` | Tobias | ✅ |
+| Caddy SSL cert (auto, po DNS) | DNS | ✅ |
+| `TWITTER_BEARER_TOKEN` — weryfikacja tweetów | — | ✅ skonfigurowany |
+| Email `noreply@phonebook.0x01.world` (Resend + domena) | — | ✅ |
+| Vercel env vars: `API_URL=https://api.phonebook.0x01.world` | — | ⏳ sprawdzić |
+| Twilio webhooks w konsoli Twilio | — | ⏳ ustawić |
 
 ---
 

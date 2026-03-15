@@ -6,6 +6,8 @@
 
 ## Faza 1: Naprawy — ZROBIONE ✅
 
+> Ostatnia aktualizacja: 15 marca 2026
+
 ### 1.1 Krytyczne bugfixy (wykonano marzec 2026)
 
 - [x] **Brakująca kolumna `claim_tweet_code`** — `ALTER TABLE agents ADD COLUMN claim_tweet_code VARCHAR(12)`
@@ -27,11 +29,23 @@
 - [x] **Brak auth na trigger endpointach** — `requireAgentAuth` na devices/status, jobs/pending, jobs/complete
 - [x] **TWILIO_WEBHOOK_BASE** — poprawiony na Hetznerze (`/api/twilio` na końcu)
 
-### 🟠 HIGH — naprawić przed launchem
+### Faza 1.6: Claim flow redesign — ZROBIONE ✅
+
+- [x] **Claim flow** — przebudowany z sequential (email→tweet→wallet) na wybór 1 z 3 niezależnych metod
+- [x] **Solana wallet claim** — prawdziwa weryfikacja podpisu Ed25519 (`nacl.sign.detached.verify` + `bs58`)
+- [x] **Tweet claim** — wyciąganie tweet ID z URL + wywołanie Twitter API v2 (z fallback na trust-based gdy brak tokenu)
+- [x] **Tweet text** — copyable textarea z pełną treścią (name, number, link, code, hashtags)
+- [x] **btoa fix** — kompatybilna z przeglądarką konwersja podpisu Phantom (zamiast `Buffer`)
+
+### 🟠 HIGH — naprawić przed launchem (nadal otwarte)
 
 - [ ] **raterAge bug w ratings.ts (linia 111)** — `raterAgent[0].id.getTime()` — UUID to string, nie Date, zawsze NaN. Age factor zawsze 1.0.
   - **Fix:** użyć `new Date(raterAgent[0].createdAt).getTime()` + dodać `createdAt` do select
   - Plik: `apps/backend/src/routes/ratings.ts:111`
+
+- [ ] **sortBy ignorowane w agents.ts (linia 96)** — `orderBy` zawsze używa `agents.createdAt`, parametr `sortBy` ignorowany.
+  - **Fix:** switch/case na `sortBy` → `agents.reputationScore`, `agents.createdAt`, etc.
+  - Plik: `apps/backend/src/routes/agents.ts:96`
 
 - [ ] **Challenge evaluation placeholder (linia 88-93)** — dla challengeów typu "coder" używa `.includes()` zamiast faktycznej oceny. Non-testable challenges nigdy nie dostaną `verified=true` (score=50, sprawdza 50===100).
   - Plik: `apps/backend/src/routes/challenges.ts:88-104`
@@ -39,14 +53,14 @@
 - [ ] **Brakujący UNIQUE constraint w ratings** — można wielokrotnie ratować tego samego agenta na tym samym wymiarze. Dodać migrację: UNIQUE(agentId, raterId, dimension).
   - Plik: `packages/database/src/schema.ts`
 
-- [ ] **Twitter verify auto-pass** — jeśli brak `TWITTER_BEARER_TOKEN`, tweet verification zawsze zwraca `true`. W prodzie bez tokenu każdy może claim bez prawdziwego tweeta.
-  - Plik: `apps/backend/src/services/verify-tweet.ts:50`
+- [ ] **Twitter verify auto-pass** — jeśli brak `TWITTER_BEARER_TOKEN`, tweet verification zwraca `true` (trust-based). W prodzie bez tokenu każdy może claim bez prawdziwego tweeta.
+  - Plik: `apps/backend/src/services/verify-tweet.ts:50` (linia z `return !TWITTER_BEARER_TOKEN`)
 
-- [ ] **APNs JWT mock** — `getAccessToken()` zwraca `'mock-jwt-token'`. Push na iOS nie zadziała.
-  - Plik: `apps/backend/src/services/apns.ts:51`
+- [ ] **APNs JWT mock** — `getAccessToken()` zwraca `` `mock-jwt-token-${now}` ``. Push na iOS nie zadziała.
+  - Plik: `apps/backend/src/services/apns.ts:54`
 
 - [ ] **FCM deprecated API** — używa starego `https://fcm.googleapis.com/fcm/send` (deprecated). Powinno być Firebase Admin SDK.
-  - Plik: `apps/backend/src/services/fcm.ts:38`
+  - Plik: `apps/backend/src/services/fcm.ts:35`
 
 ### 🟡 MEDIUM — do naprawy po launchu
 
@@ -133,9 +147,11 @@ A    api.phonebook    204.168.154.141    TTL: 300
 ## Checklist przed deployem
 
 ### Krytyczne bugfixy (WYMAGANE)
-- [ ] Fix `ENCRYPTION_KEY` w dead-drop.ts — użyj `DEAD_DROP_KEY` z env
-- [ ] Fix `reputation_score` → `reputationScore` w search.ts
-- [ ] Dodaj auth na 3 trigger endpointy
+- [x] Fix `ENCRYPTION_KEY` w dead-drop.ts — użyj `DEAD_DROP_KEY` z env
+- [x] Fix `reputation_score` → `reputationScore` w search.ts
+- [x] Dodaj auth na 3 trigger endpointy
+- [x] Claim flow — 3 niezależne metody (email/tweet/wallet)
+- [x] Solana wallet — prawdziwa weryfikacja Ed25519
 
 ### Kod
 - [x] `pnpm dev` — OK
