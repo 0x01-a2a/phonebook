@@ -59,7 +59,14 @@ export default function ClaimPage() {
           setAgent(data.agent);
           setMessageToSign(data.messageToSign || '');
           if (data.claimTweetCode) setClaimTweetCode(data.claimTweetCode);
-          // don't auto-redirect if claimed — let them add more methods
+          // Save to localStorage so "My Agents" panel can find this agent
+          if (typeof window !== 'undefined') {
+            const stored = JSON.parse(localStorage.getItem('phonebook_my_agents') || '[]');
+            if (!stored.find((a: any) => a.id === data.agent.id)) {
+              stored.push({ id: data.agent.id, name: data.agent.name, claimToken: token });
+              localStorage.setItem('phonebook_my_agents', JSON.stringify(stored));
+            }
+          }
         }
       })
       .catch(() => setError('Failed to load claim information'))
