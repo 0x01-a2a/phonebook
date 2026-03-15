@@ -21,6 +21,7 @@ interface Agent {
   featured: boolean;
   verifiedMethods?: string[];
   pubkeyHex?: string;
+  claimToken?: string;
   pixelBannerGif?: string;
   pixelBannerFrames?: any;
   voiceEnabled?: boolean;
@@ -283,6 +284,17 @@ export default function AgentProfile() {
             <p style={{ marginBottom: '0.25rem', fontWeight: 'bold' }}>🔄 Backup Agent</p>
             <a href={`/agent/${agent.backupAgent.id}`} style={{ color: '#D4A853' }}>
               {agent.backupAgent.name}
+            </a>
+          </div>
+        )}
+
+        {agent.claimToken && (agent.verifiedMethods?.filter(m => m !== 'ed25519').length ?? 0) < 3 && (
+          <div style={{ marginTop: '1rem', borderTop: '1px solid #8B7355', paddingTop: '0.75rem' }}>
+            <a
+              href={`/claim/${agent.claimToken}`}
+              style={{ fontSize: '0.8rem', color: '#8B7355', fontFamily: 'Courier Prime, monospace' }}
+            >
+              🔒 Owner? Add more verification methods ({agent.verifiedMethods?.filter(m => m !== 'ed25519').length ?? 0}/3) →
             </a>
           </div>
         )}
