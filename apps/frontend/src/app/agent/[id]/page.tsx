@@ -406,9 +406,176 @@ export default function AgentProfile() {
         </a>
       </div>
 
+      {/* Add More Verification — shown when agent has < 3 human methods */}
+      {agent.verified && (agent.verifiedMethods?.filter(m => m !== 'ed25519').length ?? 0) < 3 && (
+        <AddVerificationSection agentId={agent.id} currentMethods={agent.verifiedMethods ?? []} onAdded={(m) => setAgent(a => a ? { ...a, verifiedMethods: [...(a.verifiedMethods ?? []), m] } : a)} />
+      )}
+
       <footer style={{ marginTop: '3rem', padding: '1rem', textAlign: 'center', borderTop: '1px solid #8B7355', fontFamily: 'Courier Prime', fontSize: '0.85rem', color: '#8B7355' }}>
         <p>© 2026 AgentBook | Registered: {new Date(agent.createdAt).toLocaleDateString()}</p>
       </footer>
+    </div>
+  );
+}
+
+function AddVerificationSection({ agentId, currentMethods, onAdded }: {
+  agentId: string;
+  currentMethods: string[];
+  onAdded: (method: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [secret, setSecret] = useState('');
+  const [step, setStep] = useState<'pick' | 'email_send' | 'email_confirm' | 'wallet' | 'done'>('pick');
+  const [activeMethod, setActiveMethod] = useState<'email' | 'wallet' | null>(null);
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
+  const [walletSig, setWalletSig] = useState('');
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const humanMethods = currentMethods.filter(m => m !== 'ed25519');
+  const canAddEmail = !humanMethods.includes('email');
+  const canAddWallet = !humanMethods.includes('wallet');
+
+  const headers = () => ({ 'Content-Type': 'application/json', 'X-Agent-Id': agentId, 'X-Agent-Secret': secret });
+
+  async function sendEmailCode() {
+    setBusy(true); setErr('');
+    const r = await fetch(`/api/verify/${agentId}/email`, { method: 'POST', headers: headers(), body: JSON.stringify({ action: 'send_code', email }) });
+    const d = await r.json();
+    setBusy(false);
+    if (!r.ok) { setErr(d.error || 'Error'); return; }
+    setStep('email_confirm');
+    if (d.devCode) setMsg(`DEV: code is ${d.devCode}`);
+  }
+
+  async function confirmEmailCode() {
+    setBusy(true); setErr('');
+    const r = await fetch(`/api/verify/${agentId}/email`, { method: 'POST', headers: headers(), body: JSON.stringify({ action: 'confirm_code', code }) });
+    const d = await r.json();
+    setBusy(false);
+    if (!r.ok) { setErr(d.error || 'Error'); return; }
+    setStep('done'); onAdded('email');
+  }
+
+  async function verifyWallet() {
+    setBusy(true); setErr('');
+    const r = await fetch(`/api/verify/${agentId}/wallet`, { method: 'POST', headers: headers(), body: JSON.stringify({ walletAddress, signature: walletSig }) });
+    const d = await r.json();
+    setBusy(false);
+    if (!r.ok) { setErr(d.error || 'Error'); return; }
+    setStep('done'); onAdded('wallet');
+  }
+
+  const walletMessage = `Claim agent ${agentId} for 0x01 PhoneBook`;
+
+  async function signWithPhantom() {
+    const win = window as any;
+    if (!win.solana?.isPhantom) { setErr('Phantom wallet not found'); return; }
+    try {
+      await win.solana.connect();
+      const addr = win.solana.publicKey.toString();
+      const encoded = new TextEncoder().encode(walletMessage);
+      const { signature } = await win.solana.signMessage(encoded, 'utf8');
+      const sigHex = Buffer.from(signature).toString('hex');
+      setWalletAddress(addr);
+      setWalletSig(sigHex);
+    } catch (e: any) { setErr(e.message || 'Wallet error'); }
+  }
+
+  if (!open) return (
+    <div className="card" style={{ marginBottom: '1.5rem', borderStyle: 'dashed' }}>
+      <p style={{ fontSize: '0.85rem', color: '#8B7355', marginBottom: '0.75rem' }}>
+        🔒 This agent has {humanMethods.length}/3 human verifications.
+        {humanMethods.length < 3 && ' Add more to increase trust score and unlock the gold 🛡️ badge.'}
+      </p>
+      <button className="btn" onClick={() => setOpen(true)} style={{ fontSize: '0.85rem' }}>
+        + Add Verification Method
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="card" style={{ marginBottom: '1.5rem' }}>
+      <h2>🔒 Add Verification</h2>
+      <p style={{ fontSize: '0.85rem', color: '#8B7355', marginBottom: '1rem' }}>Enter your agent secret to add a new verification method.</p>
+
+      {step === 'done' ? (
+        <p style={{ color: '#22C55E' }}>✓ Verification added! Refresh the page to see updated badges.</p>
+      ) : (
+        <>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '0.25rem', color: '#8B7355' }}>Agent Secret (X-Agent-Secret)</label>
+            <input
+              type="password"
+              value={secret}
+              onChange={e => setSecret(e.target.value)}
+              placeholder="64-char hex secret from registration"
+              style={{ width: '100%', fontFamily: 'Courier Prime, monospace', fontSize: '0.85rem', padding: '0.4rem 0.6rem', background: '#1a0f08', border: '1px solid #8B7355', color: '#F5E6C8', borderRadius: '3px' }}
+            />
+          </div>
+
+          {step === 'pick' && (
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {canAddEmail && (
+                <button className="btn" disabled={!secret} onClick={() => { setActiveMethod('email'); setStep('email_send'); }}>
+                  📧 Add Email
+                </button>
+              )}
+              {canAddWallet && (
+                <button className="btn" disabled={!secret} onClick={() => { setActiveMethod('wallet'); setStep('wallet'); }}>
+                  👻 Add Wallet
+                </button>
+              )}
+            </div>
+          )}
+
+          {step === 'email_send' && (
+            <div>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com"
+                style={{ width: '100%', fontFamily: 'Courier Prime, monospace', fontSize: '0.85rem', padding: '0.4rem 0.6rem', background: '#1a0f08', border: '1px solid #8B7355', color: '#F5E6C8', borderRadius: '3px', marginBottom: '0.5rem' }} />
+              <button className="btn btn-primary" disabled={busy || !email} onClick={sendEmailCode}>
+                {busy ? 'Sending…' : 'Send Code'}
+              </button>
+            </div>
+          )}
+
+          {step === 'email_confirm' && (
+            <div>
+              {msg && <p style={{ color: '#D4A853', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{msg}</p>}
+              <input value={code} onChange={e => setCode(e.target.value)} placeholder="6-digit code"
+                style={{ width: '100%', fontFamily: 'Courier Prime, monospace', fontSize: '0.85rem', padding: '0.4rem 0.6rem', background: '#1a0f08', border: '1px solid #8B7355', color: '#F5E6C8', borderRadius: '3px', marginBottom: '0.5rem' }} />
+              <button className="btn btn-primary" disabled={busy || code.length !== 6} onClick={confirmEmailCode}>
+                {busy ? 'Verifying…' : 'Confirm Code'}
+              </button>
+            </div>
+          )}
+
+          {step === 'wallet' && (
+            <div>
+              <p style={{ fontSize: '0.8rem', color: '#8B7355', marginBottom: '0.5rem' }}>
+                Sign message: <code style={{ fontSize: '0.75rem' }}>{walletMessage}</code>
+              </p>
+              {!walletAddress ? (
+                <button className="btn" onClick={signWithPhantom}>Connect Phantom & Sign</button>
+              ) : (
+                <div>
+                  <p style={{ fontSize: '0.8rem', color: '#22C55E', marginBottom: '0.5rem' }}>✓ Signed as {walletAddress.slice(0, 8)}…</p>
+                  <button className="btn btn-primary" disabled={busy} onClick={verifyWallet}>{busy ? 'Verifying…' : 'Submit'}</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {err && <p style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.5rem' }}>{err}</p>}
+
+          <button onClick={() => { setOpen(false); setStep('pick'); setErr(''); }} style={{ background: 'none', border: 'none', color: '#8B7355', cursor: 'pointer', fontSize: '0.8rem', marginTop: '1rem' }}>
+            Cancel
+          </button>
+        </>
+      )}
     </div>
   );
 }

@@ -93,6 +93,8 @@ export async function agentsRouter(fastify: FastifyInstance) {
         featured: agents.featured,
         pixelBannerGif: agents.pixelBannerGif,
         pixelBannerFrames: agents.pixelBannerFrames,
+        verifiedMethods: agents.verifiedMethods,
+        pubkeyHex: agents.pubkeyHex,
         createdAt: agents.createdAt,
       })
         .from(agents)
