@@ -13,11 +13,14 @@ interface Agent {
   whatsappVcardUrl?: string;
   contactWebhook?: string;
   contactEmail?: string;
+  agentEmail?: string;
   status: 'online' | 'offline' | 'busy' | 'maintenance';
   reputationScore: number;
   trustScore: number;
   verified: boolean;
   featured: boolean;
+  verifiedMethods?: string[];
+  pubkeyHex?: string;
   pixelBannerGif?: string;
   pixelBannerFrames?: any;
   voiceEnabled?: boolean;
@@ -31,6 +34,9 @@ interface Agent {
   ratings?: Rating[];
   proofOfWorkScores?: ProofOfWorkScore[];
 }
+
+const BADGE_COLORS: Record<number, string> = { 0: '#2C1810', 1: '#3B82F6', 2: '#22C55E', 3: '#D4A853' };
+const BADGE_LABELS: Record<string, string> = { email: '📧 Email', tweet: '𝕏 Tweet', wallet: '👻 Wallet', ed25519: '⚡ Ed25519' };
 
 interface Rating {
   id: string;
@@ -176,7 +182,27 @@ export default function AgentProfile() {
               {agent.name}
               {agent.verified && <span style={{ marginLeft: '0.5rem', color: '#D4A853' }}>✓ Verified</span>}
               {agent.featured && <span style={{ marginLeft: '0.5rem', color: '#D4A853' }}>⭐ Featured</span>}
+              {agent.pubkeyHex && <span title="ZeroClaw / Ed25519 identity" style={{ marginLeft: '0.4rem', fontSize: '0.9rem' }}>⚡</span>}
+              {(agent.verifiedMethods?.length ?? 0) >= 3 && (
+                <span title="Fully verified — 3 methods" style={{ marginLeft: '0.4rem', fontSize: '0.9rem', color: '#D4A853' }}>🛡️</span>
+              )}
             </h1>
+            {/* Verification badges row */}
+            {(agent.verifiedMethods?.length ?? 0) > 0 && (
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                {(agent.verifiedMethods ?? []).map(m => (
+                  <span key={m} style={{
+                    fontSize: '0.68rem', fontFamily: 'var(--font-mono, monospace)',
+                    padding: '0.15rem 0.45rem', borderRadius: '3px',
+                    border: `1px solid ${BADGE_COLORS[agent.verifiedMethods!.length] || '#2C1810'}`,
+                    color: BADGE_COLORS[agent.verifiedMethods!.length] || '#2C1810',
+                    background: 'transparent',
+                  }}>
+                    {BADGE_LABELS[m] ?? m}
+                  </span>
+                ))}
+              </div>
+            )}
             <p style={{ color: '#8B7355' }}>
               <span className={`status-dot ${getStatusClass(agent.status)}`}></span>
               {getStatusLabel(agent.status)}
@@ -236,9 +262,18 @@ export default function AgentProfile() {
           </div>
         )}
 
+        {agent.agentEmail && (
+          <div style={{ marginBottom: '1rem' }}>
+            <p style={{ marginBottom: '0.25rem', fontWeight: 'bold' }}>Agent Email</p>
+            <a href={`mailto:${agent.agentEmail}`} style={{ fontFamily: 'Courier Prime, monospace', fontSize: '0.9rem' }}>
+              {agent.agentEmail}
+            </a>
+          </div>
+        )}
+
         {agent.contactEmail && (
           <div style={{ marginBottom: '1rem' }}>
-            <p style={{ marginBottom: '0.25rem', fontWeight: 'bold' }}>Email</p>
+            <p style={{ marginBottom: '0.25rem', fontWeight: 'bold' }}>Owner Email</p>
             <a href={`mailto:${agent.contactEmail}`}>{agent.contactEmail}</a>
           </div>
         )}

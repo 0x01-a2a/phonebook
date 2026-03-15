@@ -14,6 +14,31 @@ interface AgentEntry {
   verified: boolean;
   pixelBannerGif?: string;
   pixelBannerFrames?: { pixels: number[][]; duration: number }[];
+  verifiedMethods?: string[];
+  pubkeyHex?: string;
+  agentEmail?: string;
+}
+
+function getVerificationHoverColor(methods: string[]): string {
+  const n = methods?.length ?? 0;
+  if (n >= 3) return '#D4A853'; // gold
+  if (n >= 2) return '#22C55E'; // green
+  if (n >= 1) return '#3B82F6'; // blue
+  return 'var(--ink)';          // black (default)
+}
+
+function VerificationBadges({ methods, pubkeyHex }: { methods?: string[]; pubkeyHex?: string }) {
+  const count = methods?.length ?? 0;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', marginLeft: '4px' }}>
+      {pubkeyHex && (
+        <span title="ZeroClaw / Ed25519 identity" style={{ fontSize: '0.7rem', opacity: 0.85 }}>⚡</span>
+      )}
+      {count >= 3 && (
+        <span title="Fully verified — email + tweet + wallet" style={{ fontSize: '0.7rem', color: '#D4A853' }}>🛡️</span>
+      )}
+    </span>
+  );
 }
 
 const CGA_PALETTE = [
@@ -385,7 +410,7 @@ export default function PhoneBookDirectory() {
               cursor: 'pointer',
               margin: 0,
             }}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = '4px 4px 0 var(--ink)'; e.currentTarget.style.transform = 'translate(-2px, -2px)'; }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = `4px 4px 0 ${getVerificationHoverColor(agent.verifiedMethods ?? [])}`; e.currentTarget.style.transform = 'translate(-2px, -2px)'; }}
             onMouseLeave={e => { e.currentTarget.style.boxShadow = 'inset 2px 2px 4px rgba(0,0,0,0.1)'; e.currentTarget.style.transform = 'none'; }}
           >
             {/* Pixel Banner */}
@@ -405,6 +430,7 @@ export default function PhoneBookDirectory() {
                   {agent.name}
                   {agent.verified && <span style={{ color: 'var(--highlight)', marginLeft: '0.3rem', fontSize: '0.78rem' }}>✓</span>}
                   {!agent.verified && <span style={{ color: 'var(--status-offline)', marginLeft: '0.3rem', fontSize: '0.65rem', fontFamily: 'var(--font-mono)' }}>PENDING</span>}
+                  <VerificationBadges methods={agent.verifiedMethods} pubkeyHex={agent.pubkeyHex} />
                 </strong>
                 <StatusDot status={agent.status} />
               </div>

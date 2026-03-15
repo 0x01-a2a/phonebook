@@ -42,6 +42,10 @@ function generateClaimToken(): string {
   return 'pb_claim_' + crypto.randomBytes(24).toString('hex');
 }
 
+export function slugifyName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30);
+}
+
 export async function agentsRouter(fastify: FastifyInstance) {
   // List all agents with pagination and filters
   fastify.get('/', async (request, reply) => {
@@ -222,17 +226,20 @@ export async function agentsRouter(fastify: FastifyInstance) {
     // Generate UUID first, then derive virtual number deterministically from it
     const agentId = randomUUID();
     const phoneNumber = getVirtualNumberFromAgentId(agentId);
+    const agentEmail = `${slugifyName(data.name)}@phonebook.0x01.world`;
 
     const rows = await db.insert(agents).values({
       ...data,
       id: agentId,
       phoneNumber,
+      agentEmail,
       status: 'offline',
       reputationScore: 0,
       trustScore: 1.0,
       verified: false,
       claimToken,
       claimStatus: 'unclaimed',
+      verifiedMethods: [],
       agentSecretHash,
     }).returning();
     const newAgent = (rows as any[])[0];
@@ -539,6 +546,7 @@ export async function agentsRouter(fastify: FastifyInstance) {
             claimStatus: 'claimed',
             claimedAt: new Date(),
             updatedAt: new Date(),
+            verifiedMethods: ['tweet'],
           })
           .where(eq(agents.claimToken, token))
           .returning() as any[])[0];
@@ -572,6 +580,7 @@ export async function agentsRouter(fastify: FastifyInstance) {
           ownerWallet: body.walletAddress,
           claimedAt: new Date(),
           updatedAt: new Date(),
+          verifiedMethods: ['wallet'],
         })
         .where(eq(agents.claimToken, token))
         .returning() as any[])[0];
@@ -597,6 +606,7 @@ export async function agentsRouter(fastify: FastifyInstance) {
           ownerEmail: body.email,
           claimedAt: new Date(),
           updatedAt: new Date(),
+          verifiedMethods: ['email'],
         })
         .where(eq(agents.claimToken, token))
         .returning() as any[])[0];

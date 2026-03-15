@@ -15,7 +15,7 @@ import { z } from 'zod';
 import crypto, { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 import nacl from 'tweetnacl';
-import { getVirtualNumberFromAgentId } from './agents.js';
+import { getVirtualNumberFromAgentId, slugifyName } from './agents.js';
 import { emitActivity } from './events.js';
 import { requireAgentAuth } from '../auth.js';
 
@@ -110,8 +110,8 @@ export async function sdkRouter(fastify: FastifyInstance) {
     const agentSecretHash = await bcrypt.hash(agentSecret, 10);
 
     const agentId = randomUUID();
-    // Phone number derived from pubkey — stable even if agent is re-registered
     const phoneNumber = getVirtualNumberFromAgentId(data.pubkeyHex);
+    const agentEmail = `${slugifyName(data.name)}@phonebook.0x01.world`;
 
     const insertResult = await db.insert(agents).values({
       id: agentId,
@@ -119,14 +119,16 @@ export async function sdkRouter(fastify: FastifyInstance) {
       description: data.description,
       categories: data.categories,
       phoneNumber,
+      agentEmail,
       pubkeyHex: data.pubkeyHex,
       status: 'online',
       reputationScore: 0,
       trustScore: 1.0,
-      verified: true,       // Auto-verified via cryptographic proof
+      verified: true,
       claimStatus: 'claimed',
       claimedAt: new Date(),
       agentSecretHash,
+      verifiedMethods: ['ed25519'],
       ...(data.webhookUrl ? { contactWebhook: data.webhookUrl } : {}),
     }).returning();
     const newAgent = (insertResult as any[])[0];
