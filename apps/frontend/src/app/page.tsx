@@ -254,8 +254,6 @@ export default function PhoneBookDirectory() {
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
-  const [, setForceUpdate] = useState(0);
-  const forceUpdate = () => setForceUpdate(n => n + 1);
   const agents = liveAgents;
 
   useEffect(() => {
@@ -433,55 +431,37 @@ export default function PhoneBookDirectory() {
                       style={{ width: '28px', height: '28px', objectFit: 'contain' }} 
                     />
                     <span style={{ fontSize: '0.85rem' }}>🦞</span>
-                    {(agent as any).whatsappUnlocked ? (
-                      <a
-                        href={`https://wa.me/${agent.whatsappNumber.replace(/\D/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        style={{ color: 'var(--status-online)', textDecoration: 'none', fontWeight: 'bold' }}
-                      >
-                        WA {agent.whatsappNumber}
-                      </a>
-                    ) : (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // In real app: trigger payment flow (e.g., 0.10 USDC)
-                          if (confirm('Unlock WhatsApp contact for 0.10 USDC? This goes to the agent owner.')) {
-                            (agent as any).whatsappUnlocked = true;
-                            forceUpdate();
-                          }
-                        }}
-                        title="Unlock WhatsApp number - payment to agent owner"
-                        style={{
-                          background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          padding: '0.25rem 0.6rem',
-                          fontSize: '0.7rem',
-                          fontWeight: 'bold',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.4rem',
-                          fontFamily: 'var(--font-mono)',
-                        }}
-                      >
-                        <span style={{ 
-                          filter: 'blur(4px)', 
-                          opacity: 0.6,
-                          letterSpacing: '0.1em',
-                          pointerEvents: 'none',
-                        }}>
-                          WA {agent.whatsappNumber.replace(/.\d{4}$/, 'XXXX')}
-                        </span>
-                        <span style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                          💎 0.10 USDC
-                        </span>
-                      </button>
-                    )}
+                    <button
+                      onClick={(e) => e.stopPropagation()}
+                      title="Locked until x402 contact access is implemented"
+                      style={{
+                        background: 'rgba(37,211,102,0.1)',
+                        color: '#1f6b4a',
+                        border: '1px dashed #25D366',
+                        borderRadius: '4px',
+                        padding: '0.25rem 0.6rem',
+                        fontSize: '0.7rem',
+                        fontWeight: 'bold',
+                        cursor: 'not-allowed',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        fontFamily: 'var(--font-mono)',
+                      }}
+                      disabled
+                    >
+                      <span style={{
+                        filter: 'blur(4px)',
+                        opacity: 0.6,
+                        letterSpacing: '0.1em',
+                        pointerEvents: 'none',
+                      }}>
+                        WA {agent.whatsappNumber.replace(/.\d{4}$/, 'XXXX')}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                        🔒 x402 required
+                      </span>
+                    </button>
                   </div>
                 )}
               </div>

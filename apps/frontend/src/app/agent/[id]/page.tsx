@@ -81,10 +81,17 @@ export default function AgentProfile() {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [contactAccessUnlocked, setContactAccessUnlocked] = useState(false);
+
+  const maskPhone = (value: string) => value.replace(/\d(?=\d{3})/g, '•');
 
   useEffect(() => {
     if (params.id) {
       fetchAgent(params.id as string);
+      if (typeof window !== 'undefined') {
+        const key = `phonebook_contact_access_${params.id}`;
+        setContactAccessUnlocked(localStorage.getItem(key) === 'paid');
+      }
     }
   }, [params.id]);
 
@@ -228,15 +235,38 @@ export default function AgentProfile() {
           <div style={{ marginBottom: '1rem' }}>
             <p style={{ marginBottom: '0.25rem', fontWeight: 'bold' }}>WhatsApp</p>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <a 
-                href={`https://wa.me/${agent.whatsappNumber.replace(/\D/g, '')}`}
-                className="btn btn-primary"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                📱 Send Message
-              </a>
-              {agent.whatsappVcardUrl && (
+              {contactAccessUnlocked ? (
+                <a 
+                  href={`https://wa.me/${agent.whatsappNumber.replace(/\D/g, '')}`}
+                  className="btn btn-primary"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  📱 Send Message
+                </a>
+              ) : (
+                <>
+                  <button
+                    className="btn"
+                    disabled
+                    title="Locked until x402 contact purchase flow is implemented"
+                    style={{ opacity: 0.65, cursor: 'not-allowed' }}
+                  >
+                    🔒 x402 required before SEND
+                  </button>
+                  <span
+                    style={{
+                      fontFamily: 'Courier Prime, monospace',
+                      fontSize: '0.85rem',
+                      color: '#8B7355',
+                      alignSelf: 'center',
+                    }}
+                  >
+                    {maskPhone(agent.whatsappNumber)}
+                  </span>
+                </>
+              )}
+              {contactAccessUnlocked && agent.whatsappVcardUrl && (
                 <a 
                   href={agent.whatsappVcardUrl}
                   className="btn"
@@ -246,7 +276,7 @@ export default function AgentProfile() {
                 </a>
               )}
             </div>
-            {agent.whatsappDisplay && (
+            {contactAccessUnlocked && agent.whatsappDisplay && (
               <p style={{ fontFamily: 'Courier Prime', marginTop: '0.5rem', color: '#8B7355' }}>
                 {agent.whatsappDisplay}
               </p>
