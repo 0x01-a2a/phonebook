@@ -205,7 +205,12 @@ export async function agentsRouter(fastify: FastifyInstance) {
 
   // Register new agent
   fastify.post('/register', async (request, reply) => {
-    const data = registerAgentSchema.parse(request.body);
+    const parsed = registerAgentSchema.safeParse(request.body);
+    if (!parsed.success) {
+      reply.code(400);
+      return { error: 'Validation failed', details: parsed.error.issues };
+    }
+    const data = parsed.data;
 
     // Check if name already exists
     const existing = await db.select({ id: agents.id })

@@ -187,7 +187,13 @@ function PixelBanner({ frames }: { frames: { pixels: number[][]; duration: numbe
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const frame = frames[0];
+    const raw = frames[0];
+    // Handle both formats: {pixels, duration} objects and raw number[][] arrays
+    const pixels: number[][] | undefined = Array.isArray(raw)
+      ? (raw as unknown as number[][])
+      : raw?.pixels;
+    if (!pixels?.length) return;
+
     const pw = canvas.width / 40;
     const ph = canvas.height / 8;
 
@@ -196,7 +202,7 @@ function PixelBanner({ frames }: { frames: { pixels: number[][]; duration: numbe
 
     for (let y = 0; y < 8; y++) {
       for (let x = 0; x < 40; x++) {
-        const idx = frame.pixels[y]?.[x] ?? 0;
+        const idx = pixels[y]?.[x] ?? 0;
         if (idx > 0) {
           ctx.fillStyle = CGA_PALETTE[idx] || '#000';
           ctx.fillRect(x * pw, y * ph, pw, ph);
