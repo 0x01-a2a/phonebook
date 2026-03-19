@@ -187,28 +187,52 @@ function PixelBanner({ frames }: { frames: { pixels: number[][]; duration: numbe
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const raw = frames[0];
-    // Handle both formats: {pixels, duration} objects and raw number[][] arrays
-    const pixels: number[][] | undefined = Array.isArray(raw)
-      ? (raw as unknown as number[][])
-      : raw?.pixels;
-    if (!pixels?.length) return;
+    // Normalize frames: handle both {pixels, duration} objects and raw number[][] arrays
+    const normalized = frames.map((raw) => {
+      if (Array.isArray(raw) && Array.isArray((raw as unknown as number[][])[0])) {
+        return { pixels: raw as unknown as number[][], duration: 500 };
+      }
+      return { pixels: raw.pixels, duration: raw.duration || 500 };
+    }).filter(f => f.pixels?.length);
+
+    if (!normalized.length) return;
 
     const pw = canvas.width / 40;
     const ph = canvas.height / 8;
 
-    ctx.fillStyle = '#0a0a0a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    for (let y = 0; y < 8; y++) {
-      for (let x = 0; x < 40; x++) {
-        const idx = pixels[y]?.[x] ?? 0;
-        if (idx > 0) {
-          ctx.fillStyle = CGA_PALETTE[idx] || '#000';
-          ctx.fillRect(x * pw, y * ph, pw, ph);
+    const drawFrame = (pixels: number[][]) => {
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 40; x++) {
+          const idx = pixels[y]?.[x] ?? 0;
+          if (idx > 0) {
+            ctx.fillStyle = CGA_PALETTE[idx] || '#000';
+            ctx.fillRect(x * pw, y * ph, pw, ph);
+          }
         }
       }
+    };
+
+    // Single frame — draw once, no animation needed
+    if (normalized.length === 1) {
+      drawFrame(normalized[0].pixels);
+      return;
     }
+
+    // Multiple frames — animate
+    let frameIdx = 0;
+    drawFrame(normalized[0].pixels);
+
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      frameIdx = (frameIdx + 1) % normalized.length;
+      drawFrame(normalized[frameIdx].pixels);
+      timer = setTimeout(tick, normalized[frameIdx].duration);
+    };
+    timer = setTimeout(tick, normalized[0].duration);
+
+    return () => clearTimeout(timer);
   }, [frames]);
 
   return (
