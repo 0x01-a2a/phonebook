@@ -1,6 +1,0 @@
-{
-  "installCommand": "pnpm install",
-  "buildCommand": "pnpm --filter phonebook-frontend build",
-  "outputDirectory": "apps/frontend/.next",
-  "framework": "nextjs"
-}
