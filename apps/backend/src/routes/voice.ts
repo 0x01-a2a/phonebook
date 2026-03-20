@@ -18,7 +18,7 @@ export async function voiceRouter(fastify: FastifyInstance) {
     console.log(`[VoiceTool] search_web called: "${query}"`);
 
     try {
-      const results = await firecrawl.search(query, { limit: 3, tbs: 'qdr:d' });
+      const results = await firecrawl.search(query, { limit: 5 });
 
       if (results.length === 0) {
         return { results: `No results found for "${query}".` };
