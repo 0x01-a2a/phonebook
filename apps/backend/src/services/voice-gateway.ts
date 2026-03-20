@@ -87,11 +87,62 @@ export async function textToSpeech(
       return null;
     }
 
-    // In production, upload the audio buffer to S3/R2 and return the URL.
-    // For now, return a placeholder indicating success.
-    return `elevenlabs://generated/${Date.now()}`;
+    const arrayBuf = await res.arrayBuffer();
+    const buffer = Buffer.from(arrayBuf);
+
+    const { uploadAudio, buildKey } = await import('./r2-storage.js');
+    const key = buildKey(`call-${Date.now()}`, 'mp3');
+    const result = await uploadAudio(buffer, key, 'audio/mpeg');
+    return result.publicUrl;
   } catch (error) {
     console.error('[Voice] TTS error:', error);
+    return null;
+  }
+}
+
+/**
+ * Generate speech using ElevenLabs v3 model.
+ * Returns raw MP3 buffer — caller decides on storage.
+ */
+export async function textToSpeechV3(
+  text: string,
+  voiceId: string = 'EXAVITQu4vr4xnSDxMaL',
+  options?: { stability?: number; similarityBoost?: number; style?: number },
+): Promise<Buffer | null> {
+  if (!ELEVENLABS_API_KEY) {
+    console.warn('[Voice] ElevenLabs API key not configured');
+    return null;
+  }
+
+  try {
+    const res = await fetch(`${ELEVENLABS_API_URL}/text-to-speech/${voiceId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'xi-api-key': ELEVENLABS_API_KEY,
+      },
+      body: JSON.stringify({
+        text,
+        model_id: 'eleven_v3',
+        voice_settings: {
+          stability: options?.stability ?? 0.3,
+          similarity_boost: options?.similarityBoost ?? 0.85,
+          style: options?.style ?? 0.7,
+          use_speaker_boost: true,
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      console.error('[Voice] ElevenLabs v3 error:', res.status, body);
+      return null;
+    }
+
+    const arrayBuf = await res.arrayBuffer();
+    return Buffer.from(arrayBuf);
+  } catch (error) {
+    console.error('[Voice] TTS v3 error:', error);
     return null;
   }
 }

@@ -21,6 +21,9 @@ const EVENT_LABELS: Record<string, { label: string; symbol: string; color: strin
   wake_triggered: { label: 'WAKE', symbol: '^', color: '#8B1A1A' },
   banner_updated: { label: 'BANNER', symbol: '@', color: '#5B3A8C' },
   voice_call: { label: 'CALL', symbol: '%', color: '#1A5276' },
+  broadcast_started: { label: 'ON AIR', symbol: '~', color: '#1A5276' },
+  broadcast_published: { label: 'BROADCAST', symbol: '>', color: '#D4A853' },
+  broadcast_delivered: { label: 'DELIVERED', symbol: '.', color: '#2D5016' },
 };
 
 function formatTime(ts: string): string {
@@ -42,6 +45,9 @@ function formatEvent(event: ActivityEvent): string {
     case 'wake_triggered': return `Wake → ${d.name || 'agent'} via ${d.wakeType || 'push'} (${d.latency || '?'}ms)`;
     case 'banner_updated': return `${d.name || 'Agent'} updated pixel banner`;
     case 'voice_call': return `${d.from || 'Agent'} called ${d.to || 'agent'} (${d.duration || '?'})`;
+    case 'broadcast_started': return `${d.agentName || 'Agent'} gathering news for ${d.topic || 'broadcast'}`;
+    case 'broadcast_published': return `${d.agentName || 'Agent'} published "${d.title || 'broadcast'}" (${d.durationSec ? Math.round(d.durationSec as number) + 's' : '?'})`;
+    case 'broadcast_delivered': return `Broadcast "${d.title || ''}" delivered to ${d.subscriberCount || '?'} subscribers`;
     default: return JSON.stringify(d);
   }
 }

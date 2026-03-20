@@ -6,6 +6,10 @@ export const agentStatusEnum = pgEnum('agent_status', ['online', 'offline', 'bus
 export const ratingDimensionEnum = pgEnum('rating_dimension', ['response_speed', 'accuracy', 'communication', 'reliability', 'helpfulness']);
 export const transactionTypeEnum = pgEnum('transaction_type', ['contact', 'dead_drop', 'featured_listing', 'voice_call']);
 export const transactionStatusEnum = pgEnum('transaction_status', ['pending', 'completed', 'failed', 'refunded']);
+export const broadcastStatusEnum = pgEnum('broadcast_status', ['pending', 'generating', 'ready', 'broadcasting', 'completed', 'failed']);
+export const broadcastTriggerEnum = pgEnum('broadcast_trigger', ['cron', 'on_demand']);
+export const deliveryChannelEnum = pgEnum('delivery_channel', ['dead_drop', 'whatsapp', 'webhook']);
+export const deliveryStatusEnum = pgEnum('delivery_status', ['pending', 'sent', 'failed']);
 
 // Categories table
 export const categories = pgTable('categories', {
@@ -247,6 +251,87 @@ export const gatewayNodes = pgTable('gateway_nodes', {
   registeredAt: timestamp('registered_at').defaultNow().notNull(),
 });
 
+// ============================================
+// VOICE BROADCAST SYSTEM
+// ============================================
+
+// Broadcast Topics (sport, geo, tech, crypto, ai)
+export const broadcastTopics = pgTable('broadcast_topics', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  slug: varchar('slug', { length: 50 }).notNull().unique(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  color: varchar('color', { length: 7 }).default('#8B7355'),
+  iconEmoji: varchar('icon_emoji', { length: 10 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Voice Broadcasts — generated audio reports
+export const voiceBroadcasts = pgTable('voice_broadcasts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  agentId: uuid('agent_id').notNull().references(() => agents.id),
+  topicId: uuid('topic_id').notNull().references(() => broadcastTopics.id),
+  title: varchar('title', { length: 300 }),
+  scriptRaw: text('script_raw'), // with ElevenLabs Audio Tags
+  scriptPlaintext: text('script_plaintext'),
+  audioUrl: varchar('audio_url', { length: 500 }), // OGG
+  audioUrlMp3: varchar('audio_url_mp3', { length: 500 }),
+  audioDurationSec: real('audio_duration_sec'),
+  audioSizeBytes: integer('audio_size_bytes'),
+  characterCount: integer('character_count'),
+  status: broadcastStatusEnum('status').default('pending').notNull(),
+  triggerType: broadcastTriggerEnum('trigger_type').default('on_demand').notNull(),
+  requestedBy: uuid('requested_by').references(() => agents.id),
+  searchQueries: jsonb('search_queries').$type<string[]>(),
+  sourcesUsed: jsonb('sources_used').$type<{ url: string; title: string }[]>(),
+  errorMessage: text('error_message'),
+  publishedAt: timestamp('published_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Broadcast Subscriptions — who gets notified
+export const broadcastSubscriptions = pgTable('broadcast_subscriptions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  subscriberAgentId: uuid('subscriber_agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+  topicId: uuid('topic_id').notNull().references(() => broadcastTopics.id, { onDelete: 'cascade' }),
+  deliveryChannel: deliveryChannelEnum('delivery_channel').default('dead_drop').notNull(),
+  whatsappNumber: varchar('whatsapp_number', { length: 20 }),
+  webhookUrl: varchar('webhook_url', { length: 500 }),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  uniqueSubscription: uniqueIndex('subscriptions_agent_topic_unique').on(table.subscriberAgentId, table.topicId),
+}));
+
+// Broadcast Deliveries — delivery tracking per subscription
+export const broadcastDeliveries = pgTable('broadcast_deliveries', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  broadcastId: uuid('broadcast_id').notNull().references(() => voiceBroadcasts.id, { onDelete: 'cascade' }),
+  subscriptionId: uuid('subscription_id').notNull().references(() => broadcastSubscriptions.id, { onDelete: 'cascade' }),
+  channel: deliveryChannelEnum('channel').notNull(),
+  status: deliveryStatusEnum('status').default('pending').notNull(),
+  errorMessage: text('error_message'),
+  deliveredAt: timestamp('delivered_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Broadcast relations
+export const voiceBroadcastsRelations = relations(voiceBroadcasts, ({ one, many }) => ({
+  agent: one(agents, { fields: [voiceBroadcasts.agentId], references: [agents.id] }),
+  topic: one(broadcastTopics, { fields: [voiceBroadcasts.topicId], references: [broadcastTopics.id] }),
+  deliveries: many(broadcastDeliveries),
+}));
+
+export const broadcastSubscriptionsRelations = relations(broadcastSubscriptions, ({ one }) => ({
+  subscriber: one(agents, { fields: [broadcastSubscriptions.subscriberAgentId], references: [agents.id] }),
+  topic: one(broadcastTopics, { fields: [broadcastSubscriptions.topicId], references: [broadcastTopics.id] }),
+}));
+
+export const broadcastDeliveriesRelations = relations(broadcastDeliveries, ({ one }) => ({
+  broadcast: one(voiceBroadcasts, { fields: [broadcastDeliveries.broadcastId], references: [voiceBroadcasts.id] }),
+  subscription: one(broadcastSubscriptions, { fields: [broadcastDeliveries.subscriptionId], references: [broadcastSubscriptions.id] }),
+}));
+
 // Type exports
 export type PixelBannerFrame = {
   pixels: number[][]; // 2D array of color indices
@@ -257,6 +342,10 @@ export type VoiceConfig = {
   elevenlabsAgentId?: string;
   voiceId?: string;
   language?: string;
+  emotionStyle?: 'neutral' | 'energetic' | 'somber' | 'dramatic' | 'casual';
+  topics?: string[];
+  broadcastIntervalMinutes?: number;
+  broadcastEnabled?: boolean;
 };
 
 export type TestCase = {
@@ -276,3 +365,7 @@ export type DeviceTrigger = typeof deviceTriggers.$inferSelect;
 export type PendingJob = typeof pendingJobs.$inferSelect;
 export type WakeEvent = typeof wakeEvents.$inferSelect;
 export type GatewayNode = typeof gatewayNodes.$inferSelect;
+export type BroadcastTopic = typeof broadcastTopics.$inferSelect;
+export type VoiceBroadcast = typeof voiceBroadcasts.$inferSelect;
+export type BroadcastSubscription = typeof broadcastSubscriptions.$inferSelect;
+export type BroadcastDelivery = typeof broadcastDeliveries.$inferSelect;

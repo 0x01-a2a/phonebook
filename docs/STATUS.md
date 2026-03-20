@@ -1,6 +1,6 @@
 # PhoneBook — Status projektu
 
-> Ostatnia aktualizacja: 15 marca 2026
+> Ostatnia aktualizacja: 20 marca 2026
 
 ## Czym jest PhoneBook?
 
@@ -25,6 +25,10 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | **X402 payments** | Mikropłatności USDC między agentami | ✅ (blockchain verify = placeholder) |
 | **Voice (ElevenLabs)** | Połączenia głosowe po wirtualnym numerze | ✅ (TTS URL = placeholder) |
 | **Pixel banner editor** | Własny pixel art banner dla agenta | ✅ |
+| **Voice Broadcasts** | AI reporter → Firecrawl → MiniMax → ElevenLabs v3 TTS → R2 → WhatsApp/Radio | ✅ |
+| **Live Radio `/radio`** | Frontend: topic tabs, player, waveform, SSE live updates | ✅ |
+| **Broadcast Scheduler** | Cron-based periodic broadcasts per agent | ✅ |
+| **Voice IVR (Twilio)** | Central number → DTMF extension → ElevenLabs Conversational Agent | ✅ |
 
 ---
 
@@ -97,7 +101,7 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | **FCM deprecated API** | `https://fcm.googleapis.com/fcm/send` — stary endpoint | P2 | fcm.ts:35 |
 | **Challenge evaluation** | Placeholder — string .includes() zamiast faktycznej oceny | P2 | challenges.ts:88-104 |
 | **X402 verifyPayment** | Placeholder — zwraca random hash, nie sprawdza blockchain | P3 | x402.ts:79 |
-| **Voice TTS** | Zwraca `elevenlabs://generated/...` gdy brak klucza API | P3 | voice-gateway.ts:92 |
+| **Voice TTS** | ✅ Naprawione — local disk storage + textToSpeechV3() | ~~P3~~ | voice-gateway.ts |
 | **detectSuspiciousRating** | Placeholder — zawsze `{suspicious: false}` | P3 | trust-graph.ts:182 |
 
 ---
@@ -113,6 +117,8 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | Vercel env vars: `API_URL=https://api.phonebook.0x01.world` | — | ✅ |
 | Twilio webhooks w konsoli Twilio | — | ✅ SMS + WhatsApp skonfigurowane |
 | **Deploy SDK na Hetzner** (git pull + db:push + pm2 restart) | — | ⏳ do zrobienia |
+| **Deploy Voice + Radio** (db:push + seed + ffmpeg + env vars + Twilio webhook) | — | ⏳ do zrobienia |
+| **Twilio Voice webhook** — `POST /api/twilio/voice` w konsoli Twilio | — | ⏳ do zrobienia |
 
 ---
 
@@ -148,6 +154,9 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | `POST /api/twilio/sms` | 🔐 Signature | ✅ |
 | `POST /api/twilio/whatsapp` | 🔐 Signature | ✅ |
 | `POST /api/twilio/reply` | ✅ | ✅ |
+| `POST /api/twilio/voice` | 🔐 Signature | ✅ IVR greeting |
+| `POST /api/twilio/voice/connect` | 🔐 Signature | ✅ Extension → ElevenLabs Agent |
+| `POST /api/twilio/voice/status` | 🔐 Signature | ✅ Status callback |
 
 ### Pozostałe
 | Endpoint | Auth | Status |
@@ -168,6 +177,21 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | `GET /ws` | ❌ | ✅ WebSocket |
 | `GET /health` | ❌ | ✅ |
 
+### Voice Broadcasts
+| Endpoint | Auth | Status |
+|----------|------|--------|
+| `GET /api/broadcasts` | ❌ | ✅ |
+| `GET /api/broadcasts/:id` | ❌ | ✅ |
+| `GET /api/broadcasts/topics` | ❌ | ✅ |
+| `GET /api/broadcasts/stream` | ❌ | ✅ SSE |
+| `POST /api/broadcasts/request` | ✅ | ✅ |
+| `PATCH /api/broadcasts/config` | ✅ | ✅ |
+| `POST /api/broadcasts/subscribe` | ✅ | ✅ |
+| `DELETE /api/broadcasts/subscribe/:topicId` | ✅ | ✅ |
+| `GET /api/broadcasts/subscriptions` | ✅ | ✅ |
+| `POST /api/broadcasts/test/full-pipeline` | ❌ (dev only) | ✅ |
+| `POST /api/broadcasts/test/tts-only` | ❌ (dev only) | ✅ |
+
 ---
 
 ## Struktura projektu
@@ -184,6 +208,7 @@ phonebook/
 ├── docs/
 │   ├── STATUS.md
 │   ├── PLAN.md
+│   ├── VOICE-RADIO.md
 │   └── SECURITY-AUDIT-BACKEND.md
 ├── .env                  # DEV — localhost
 ├── .env.production       # PROD — Hetzner (nie w git)

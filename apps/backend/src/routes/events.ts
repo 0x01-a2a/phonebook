@@ -1,4 +1,8 @@
 import type { FastifyInstance } from 'fastify';
+import { EventEmitter } from 'events';
+
+// Global broadcast emitter for the /broadcasts/stream SSE endpoint
+export const broadcastEmitter = (globalThis as any).__broadcastEmitter ||= new EventEmitter();
 
 type EventType =
   | 'agent_registered'
@@ -11,7 +15,10 @@ type EventType =
   | 'job_created'
   | 'job_completed'
   | 'wake_triggered'
-  | 'banner_updated';
+  | 'banner_updated'
+  | 'broadcast_started'
+  | 'broadcast_published'
+  | 'broadcast_delivered';
 
 interface ActivityEvent {
   type: EventType;
@@ -21,7 +28,7 @@ interface ActivityEvent {
 
 const clients = new Set<(event: ActivityEvent) => void>();
 
-export function emitActivity(type: EventType, data: Record<string, unknown>) {
+export function emitActivity(type: EventType, data: Record<string, unknown>): void {
   const event: ActivityEvent = {
     type,
     timestamp: new Date().toISOString(),
@@ -33,6 +40,13 @@ export function emitActivity(type: EventType, data: Record<string, unknown>) {
     } catch {
       clients.delete(send);
     }
+  }
+
+  // Also emit to broadcast SSE stream if relevant
+  if (type.startsWith('broadcast_')) {
+    try {
+      broadcastEmitter.emit('broadcast', { type, ...data, timestamp: event.timestamp });
+    } catch {}
   }
 }
 

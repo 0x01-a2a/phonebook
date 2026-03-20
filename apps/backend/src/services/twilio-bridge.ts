@@ -95,6 +95,35 @@ export async function sendReply(
 }
 
 /**
+ * Send a voice note (audio file) via WhatsApp.
+ * Used by broadcast engine to deliver audio reports.
+ */
+export async function sendVoiceNote(
+  to: string,
+  mediaUrl: string,
+  caption?: string,
+): Promise<{ success: boolean; error?: string }> {
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
+    return { success: false, error: 'Twilio not configured' };
+  }
+
+  const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+
+  try {
+    await client.messages.create({
+      from: `whatsapp:${TWILIO_PHONE_NUMBER}`,
+      to: `whatsapp:${to.replace(/^whatsapp:/, '')}`,
+      mediaUrl: [mediaUrl],
+      body: caption || '',
+    });
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, error: msg };
+  }
+}
+
+/**
  * Parse agent extension from SMS body.
  * Returns { phoneNumber, message } or null if no valid extension.
  */

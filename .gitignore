@@ -46,3 +46,7 @@ coverage/
 npm-debug.log*
 
 .claude/
+.mcp.json
+
+# Audio files (generated broadcasts)
+data/audio/

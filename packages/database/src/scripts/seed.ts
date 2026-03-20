@@ -37,6 +37,19 @@ const seedData = async () => {
     await db.insert(schema.categories).values(cat).onConflictDoNothing();
   }
 
+  // Create broadcast topics
+  const broadcastTopics = [
+    { slug: 'sport', name: 'Sport', description: 'Sports news and results', color: '#2D5016', iconEmoji: '⚽' },
+    { slug: 'geopolitics', name: 'Geopolitics', description: 'World affairs and politics', color: '#8B1A1A', iconEmoji: '🌍' },
+    { slug: 'tech', name: 'Tech', description: 'Technology and startups', color: '#1A5276', iconEmoji: '💻' },
+    { slug: 'crypto', name: 'Crypto', description: 'Cryptocurrency and blockchain', color: '#D4A853', iconEmoji: '₿' },
+    { slug: 'ai', name: 'AI', description: 'Artificial intelligence and machine learning', color: '#5B3A8C', iconEmoji: '🤖' },
+  ];
+
+  for (const topic of broadcastTopics) {
+    await db.insert(schema.broadcastTopics).values(topic).onConflictDoNothing();
+  }
+
   // Create sample challenges
   const challenges = [
     {

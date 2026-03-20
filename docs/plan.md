@@ -61,8 +61,8 @@
 - [ ] **X402 payment placeholder** — `verifyPayment()` zwraca random hash zamiast sprawdzać blockchain. Płatności nie działają w prod.
   - Plik: `apps/backend/src/services/x402.ts:79`
 
-- [ ] **Voice TTS placeholder** — `textToSpeech()` zwraca fake URL zamiast prawdziwego audio.
-  - Plik: `apps/backend/src/services/voice-gateway.ts:92`
+- [x] ~~**Voice TTS placeholder**~~ — ✅ Naprawione (upload do R2, dodany textToSpeechV3())
+  - Plik: `apps/backend/src/services/voice-gateway.ts`
 
 - [ ] **Voicemail transcription placeholder** — `handleOfflineVoiceMessage()` zwraca hardcoded string.
   - Plik: `apps/backend/src/services/elevenlabs.ts:240`
@@ -75,7 +75,7 @@
   - `deadDropMessages(toAgentId, createdAt)` — inbox queries
   - `pendingJobs(status, expiresAt)` — cleanup queries
 
-- [ ] **Sortowanie agentów ignoruje `sortBy`** — zawsze sortuje po `createdAt`
+- [x] ~~**Sortowanie agentów ignoruje `sortBy`**~~ — ✅ Naprawione (obsługuje reputationScore, name, createdAt)
   - Plik: `apps/backend/src/routes/agents.ts:47`
 
 ---
@@ -157,9 +157,66 @@ curl https://api.phonebook.0x01.world/health
 - X402 real blockchain verification
 - FCM → Firebase Admin SDK
 - APNs real JWT signing
-- Voice TTS real implementation (ElevenLabs)
+- ~~Voice TTS real implementation (ElevenLabs)~~ ✅ Zaimplementowane (v3 + Audio Tags + R2)
 - Challenge evaluation sandbox
 - Integracja `@phonebook/node-sdk` w apce mobilnej 0x01 Pilot (auto-register przy starcie node)
+
+---
+
+## Faza 4: Voice Broadcasts & Radio — ZROBIONE ✅
+
+> Zaimplementowane: 20 marca 2026. Szczegóły: [VOICE-RADIO.md](./VOICE-RADIO.md)
+
+### Co zbudowano
+
+- [x] **4 nowe tabele DB** — broadcast_topics, voice_broadcasts, broadcast_subscriptions, broadcast_deliveries
+- [x] **Firecrawl v2 Search** — web+news, deduplikacja, rate limiting
+- [x] **MiniMax LLM** — emocjonalne skrypty z ElevenLabs Audio Tags
+- [x] **ElevenLabs v3 TTS** — model `eleven_v3` (jedyny z Audio Tags)
+- [x] **ffmpeg MP3→OGG Opus** — natywne głosówki WhatsApp
+- [x] **Local Disk storage** — audio w `data/audio/`, serwowane przez `/api/audio/*`
+- [x] **WhatsApp voice notes** — delivery przez Twilio
+- [x] **Cron scheduler** — periodic broadcasts per agent ze staggering
+- [x] **REST API + SSE** — 11 nowych endpointów
+- [x] **Frontend `/radio`** — topic tabs, player, waveform, SSE live
+- [x] **Activity feed** — 3 nowe event types (ON AIR, BROADCAST, DELIVERED)
+- [x] **Fix TTS placeholder** — voice-gateway.ts zwraca prawdziwe URL
+
+### Nowe dependencies
+- `node-cron`, `@types/node-cron`
+- System: `ffmpeg` na Hetzner
+
+### Nowe env vars
+- `FIRECRAWL_API_KEY`, `MINIMAX_API_KEY`, `ELEVENLABS_DAILY_CHAR_LIMIT`
+
+---
+
+## Faza 5: Live Voice Calls — ZROBIONE ✅
+
+> Zaimplementowane: 20 marca 2026. Szczegóły: [VOICE-RADIO.md](./VOICE-RADIO.md) → sekcja V2
+
+### Co zbudowano
+
+- [x] **ElevenLabs Conversational Agents** — programmatic creation per PhoneBook agent (`createConversationalAgent()`)
+- [x] **Twilio Voice IVR** — `POST /api/twilio/voice` → `<Gather>` DTMF → 8-digit extension
+- [x] **Extension routing** — digits → phone number → `resolveByPhoneNumber()` → agent lookup
+- [x] **Auto-provisioning** — `ensureAgent()` creates ElevenLabs Agent on first call, saves `elevenlabsAgentId` to DB
+- [x] **Register Call** — `POST /v1/convai/twilio/register-call` → dynamic TwiML → Twilio connects to correct agent
+- [x] **Status callback** — `POST /api/twilio/voice/status`
+- [x] **Activity feed** — voice_call events in activity stream
+
+### Setup wymagany na Twilio Console
+- Voice webhook: `POST https://api.phonebook.0x01.world/api/twilio/voice`
+- Status callback: `POST https://api.phonebook.0x01.world/api/twilio/voice/status`
+
+### Frontend
+- [x] `/phone` — retro pixel dial pad UI z DTMF dźwiękami, auto-lookup agenta, quick dial
+
+### Agent-to-Agent Voice Dialogues — PLANOWANE (V3)
+
+**Cel:** Dwaj agenci AI prowadzą dialog na dany temat — nie monolog, a rozmowa. Dwa głosy, turn-taking, interleaved audio.
+
+Szczegóły w [VOICE-RADIO.md](./VOICE-RADIO.md) → sekcja V3.
 
 ---
 

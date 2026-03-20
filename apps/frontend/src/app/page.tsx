@@ -331,7 +331,10 @@ export default function PhoneBookDirectory() {
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
 
       {/* ─── HEADER ─── */}
-      <header style={{ textAlign: 'center', padding: '2.5rem 1.5rem 1.5rem', borderBottom: '3px double var(--ink)' }}>
+      <header style={{ textAlign: 'center', padding: '2.5rem 1.5rem 1.5rem', borderBottom: '3px double var(--ink)', position: 'relative' }}>
+        <a href="/" style={{ position: 'absolute', top: '1rem', right: '1.5rem' }}>
+          <img src="/logo.png" alt="PhoneBook" style={{ width: 72, height: 72, imageRendering: 'pixelated', objectFit: 'cover', borderRadius: '50%', border: '3px solid #1A1A1A', boxShadow: '3px 3px 0px #1A1A1A' }} />
+        </a>
         <h1 style={{ fontSize: 'clamp(2.2rem, 5vw, 3.5rem)', textTransform: 'uppercase', letterSpacing: '0.12em', margin: 0 }}>
           PhoneBook
         </h1>
@@ -349,51 +352,56 @@ export default function PhoneBookDirectory() {
         </p>
         <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <a href="/verify" className="btn btn-primary" style={{ textDecoration: 'none', fontSize: '0.85rem', padding: '0.5rem 1rem' }}>
-            🔐 Verify Your Agent
+            Verify Your Agent
           </a>
           <a href="/trigger" className="btn" style={{ textDecoration: 'none', fontSize: '0.85rem', padding: '0.5rem 1rem' }}>
-            📡 Trigger Dashboard
+            Trigger Dashboard
           </a>
           <a href="/activity" className="btn" style={{ textDecoration: 'none', fontSize: '0.85rem', padding: '0.5rem 1rem' }}>
-            📊 Live Activity
+            Live Activity
+          </a>
+          <a href="/phone" className="btn" style={{ textDecoration: 'none', fontSize: '0.85rem', padding: '0.5rem 1rem' }}>
+            Call an Agent
+          </a>
+          <a href="/radio" className="btn" style={{ textDecoration: 'none', fontSize: '0.85rem', padding: '0.5rem 1rem' }}>
+            Live Radio
           </a>
         </div>
       </header>
 
       {/* ─── SEARCH & FILTER BAR ─── */}
       <div style={{
-        display: 'flex', flexWrap: 'wrap', gap: '0.5rem', padding: '0.75rem 1.5rem',
+        display: 'flex', flexWrap: 'nowrap', gap: '0.4rem', padding: '0.4rem 1rem',
         borderBottom: '1px solid var(--faded-accent)', background: 'rgba(44,24,16,0.03)', alignItems: 'center',
       }}>
         <input
           type="text"
-          placeholder="Search agents, categories, phone numbers..."
+          placeholder="Search..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          style={{ flex: '1 1 280px', minWidth: 0, fontSize: '0.82rem', padding: '0.45rem 0.7rem' }}
+          style={{ flex: '1 1 120px', minWidth: 0, fontSize: '0.78rem', padding: '0.3rem 0.5rem' }}
         />
         <select
           value={filterCategory}
           onChange={e => setFilterCategory(e.target.value)}
-          style={{ fontSize: '0.82rem', padding: '0.45rem 0.5rem', minWidth: '140px' }}
+          style={{ fontSize: '0.78rem', padding: '0.3rem 0.35rem', width: 'auto' }}
         >
-          <option value="">All categories</option>
+          <option value="">Category</option>
           {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <select
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value)}
-          style={{ fontSize: '0.82rem', padding: '0.45rem 0.5rem', minWidth: '120px' }}
+          style={{ fontSize: '0.78rem', padding: '0.3rem 0.35rem', width: 'auto' }}
         >
-          <option value="">All statuses</option>
+          <option value="">Status</option>
           <option value="online">Online</option>
           <option value="offline">Offline</option>
           <option value="busy">Busy</option>
-          <option value="maintenance">Maintenance</option>
         </select>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--faded-accent)', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span>{loaded ? `${stats.total} agents | ${stats.online} online | ${stats.verified} verified` : 'Loading live agents...'}</span>
-        </div>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--faded-accent)', whiteSpace: 'nowrap' }}>
+          {loaded ? `${stats.total}/${stats.online}` : '...'}
+        </span>
       </div>
 
       {/* ─── AGENT GRID ─── */}
