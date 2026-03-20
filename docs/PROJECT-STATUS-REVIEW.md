@@ -33,7 +33,7 @@ Pełny przegląd aplikacji PhoneBook — co działa, co jest placeholder, co wym
 | Voice Tool Calling (Firecrawl search + scrape w live calls) | ✅ |
 | Voice Broadcasts (Firecrawl → OpenAI → ElevenLabs TTS → WhatsApp) | ✅ |
 | Radio `/radio` (topic tabs, player, waveform, SSE) | ✅ |
-| Phone `/phone` (retro pixel dial pad, DTMF, quick dial) | ✅ |
+| Phone `/phone` (3-panel: agents + dial pad + guide, browser calling) | ✅ |
 | Broadcast Scheduler (cron per agent) | ✅ |
 | X402 payments (flow istnieje) | ✅ (ale verify = placeholder) |
 | Off-Grid Trigger (flow istnieje) | ✅ (ale push = placeholder) |
@@ -106,16 +106,17 @@ Agent z `broadcastEnabled: true` automatycznie:
 
 ## Co jest W TRAKCIE / do zrobienia
 
-### Browser Voice Calling (GOTOWE, pending deploy)
+### Browser Voice Calling (DEPLOYED ✅)
 - [x] `@elevenlabs/react` w dependencies
-- [x] `GET /api/voice/connect/:agentId` endpoint (committed)
-- [x] **Phone UI redesign** — useConversation() hook, agent directory sidebar z banerami, copy number
+- [x] `GET /api/voice/connect/:agentId` endpoint (deployed)
+- [x] **Phone UI 3-panel redesign** — desktop: agents+phone+guide, mobile: bottom nav tabs
+- [x] **Browser voice calling** — `useConversation()` hook, WebSocket do ElevenLabs, tested and working
 - [x] **Next.js API rewrites** — proxy broadcasts/voice/audio do backendu (naprawia CORS)
 - [x] **Radio LATEST tab** — domyślnie pokazuje najnowsze broadcasty ze wszystkich kategorii
 - [x] **Logo responsive** — ukryte na mobile, zmniejszone na desktop
 - [x] **Fix voiceEnabled** — backend nie zwracał pola, frontend parsował zły klucz
 - [x] **DB indexes** — deadDropMessages(toAgentId, createdAt), pendingJobs(status, expiresAt)
-- [ ] Deploy connect endpoint + UI na Hetzner
+- [x] **Deploy na Hetzner** — git pull + pnpm install + db:push + pm2 delete/start
 
 ### ElevenHacks Submission (deadline ~26 marca 2026)
 - [x] Submission description gotowy (`ELEVENHACKS-SUBMISSION.md`)
@@ -137,10 +138,12 @@ Agent z `broadcastEnabled: true` automatycznie:
 ## Podsumowanie priorytetów
 
 ### TERAZ (najbliższe dni — ElevenHacks deadline)
-1. ~~**Phone UI redesign**~~ ✅ DONE — useConversation() + agent directory sidebar
-2. **Deploy na Hetzner** — git pull + db:push + pm2 restart (connect endpoint + UI + indexes)
-3. **Video demo** — nagranie i montaż
-4. **Social media posty** — X, LinkedIn, Instagram, TikTok
+1. ~~**Phone UI redesign**~~ ✅ DONE — 3-panel responsive layout
+2. ~~**Deploy na Hetzner**~~ ✅ DONE — git pull + db:push + pm2 delete/start
+3. ~~**Browser voice calling**~~ ✅ DONE — tested and working
+4. **Video demo** — nagranie i montaż (60-90s, horizontal + vertical)
+5. **Social media posty** — X, LinkedIn, Instagram, TikTok (+50 pts each)
+6. **Cover image** — screenshot /phone z active call + overlay text
 
 ### PO HACKATHONIE
 5. Rate limiting fix (IP-based + stricter per-endpoint limits)

@@ -31,7 +31,7 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | **Voice IVR (Twilio)** | Central number → DTMF extension → ElevenLabs Conversational Agent | ✅ |
 | **Voice Tool Calling** | Firecrawl Search + Scrape as ElevenLabs webhook tools during live calls | ✅ |
 | **Browser Voice Calling** | `@elevenlabs/react` useConversation() — call agents from browser, no phone needed | ✅ |
-| **Phone UI** | Two-column layout: agent directory (left) + dial pad (right), animated banners, copy number | ✅ |
+| **Phone UI** | 3-panel responsive: agent directory (left) + dial pad (center) + call guide (right), mobile bottom nav tabs | ✅ |
 | **Radio LATEST tab** | Default "LATEST" tab shows all recent broadcasts across topics | ✅ |
 | **API Proxy (Next.js)** | Rewrites for /api/broadcasts, /api/voice, /api/audio — no CORS issues | ✅ |
 
@@ -124,10 +124,10 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | **Deploy SDK na Hetzner** (git pull + db:push + pm2 restart) | — | ✅ deployed |
 | **Deploy Voice + Radio** (db:push + seed + ffmpeg + env vars + pm2 restart) | — | ✅ deployed, pipeline tested |
 | **Twilio Voice webhook** — `POST /api/twilio/voice` w konsoli Twilio | — | ✅ skonfigurowany (naprawione 20.03 — było wskazywane na ElevenLabs zamiast backend) |
-| **Browser voice connect** — `/voice/connect/:agentId` endpoint | — | ✅ committed, ⏳ deploy na Hetzner |
-| **Phone UI redesign** — useConversation() + agent directory sidebar | — | ✅ |
+| **Browser voice connect** — `/voice/connect/:agentId` endpoint | — | ✅ deployed |
+| **Phone UI redesign** — 3-panel responsive layout (agents/phone/guide) | — | ✅ deployed |
 | **Next.js API rewrites** — proxy broadcasts/voice/audio to backend | — | ✅ |
-| **DB indexes** — deadDropMessages(toAgentId, createdAt), pendingJobs(status, expiresAt) | — | ✅ committed, ⏳ db:push na Hetzner |
+| **DB indexes** — deadDropMessages(toAgentId, createdAt), pendingJobs(status, expiresAt) | — | ✅ deployed (db:push) |
 | **agent-context.md update** — dodać Voice/Radio/Phone sekcje | — | ✅ |
 
 ---
@@ -171,7 +171,7 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | `POST /api/voice/tools/scrape` | ❌ (ElevenLabs webhook) | ✅ Firecrawl Scrape |
 | `POST /api/voice/call` | ✅ | ✅ Outbound call to phone |
 | `GET /api/voice/lookup` | ❌ | ✅ Agent lookup by number |
-| `GET /api/voice/connect/:agentId` | ❌ | ✅ Browser voice → ElevenLabs Agent ID (⏳ deploy) |
+| `GET /api/voice/connect/:agentId` | ❌ | ✅ Browser voice → ElevenLabs Agent ID (deployed) |
 
 ### Pozostałe
 | Endpoint | Auth | Status |
@@ -277,5 +277,7 @@ curl https://api.phonebook.0x01.world/health
 | 2026-03-20 | Phone UI redesign — useConversation() browser calling, agent directory sidebar z banerami | ✅ |
 | 2026-03-20 | Radio — LATEST tab, wycentrowane kategorie, responsywne na mobile | ✅ |
 | 2026-03-20 | Next.js rewrites — proxy /api/broadcasts, /api/voice, /api/audio do backendu | ✅ |
-| 2026-03-20 | DB indexes — deadDropMessages, pendingJobs | ✅ committed |
+| 2026-03-20 | DB indexes — deadDropMessages, pendingJobs | ✅ deployed (db:push) |
 | 2026-03-20 | Logo — ukryte na mobile (<640px), zmniejszone 72→56px | ✅ |
+| 2026-03-20 | Phone UI 3-panel redesign — desktop: agents+phone+guide, mobile: bottom nav tabs | ✅ |
+| 2026-03-20 | Deploy to Hetzner — git pull + pnpm install + db:push + pm2 delete/start | ✅ connect endpoint + indexes + new UI live |

@@ -211,13 +211,13 @@ curl https://api.phonebook.0x01.world/health
 
 ### Frontend
 - [x] `/phone` — retro pixel dial pad UI z DTMF dźwiękami, auto-lookup agenta, quick dial
-- [ ] **Phone UI redesign** — ElevenLabs ConversationBar/Orb, lista agentów, browser-based calling
+- [x] **Phone UI 3-panel redesign** — desktop: agents+phone+guide, mobile: bottom nav tabs, browser voice calling
 
-### Browser Voice Calling — W TRAKCIE
+### Browser Voice Calling — DEPLOYED ✅
 - [x] `@elevenlabs/react` dodany do dependencies
 - [x] `GET /voice/connect/:agentId` endpoint (lazy-creates ElevenLabs agent, zwraca `elevenlabsAgentId`)
-- [ ] Phone UI z `<ConversationBar agentId={id} />` — rozmowa głosowa z przeglądarki bez telefonu
-- [ ] Deploy connect endpoint na Hetzner
+- [x] Phone UI z `useConversation()` hook — rozmowa głosowa z przeglądarki bez telefonu
+- [x] Deploy connect endpoint na Hetzner (20.03.2026)
 
 ### Agent-to-Agent Voice Dialogues — PLANOWANE (V3)
 

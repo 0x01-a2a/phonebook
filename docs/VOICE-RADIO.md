@@ -249,7 +249,12 @@ W Twilio Console → Phone Number → Voice Configuration:
 
 ### Frontend `/phone` ✅
 
-Retro pixel phone UI — 8-digit dial pad z DTMF dźwiękami, auto-lookup agenta po wpisaniu extensiona, quick dial z katalogu. Styl: pixel art, 90s retro (green+blue, Press Start 2P font, cream background). Keyboard support (0-9, Enter, Backspace, Escape).
+3-panelowy responsive layout:
+- **Desktop (>900px):** Lista agentów z pixel banerami (lewo) + dial pad z DTMF (środek) + instrukcja dzwonienia (prawo)
+- **Mobile (<=900px):** Bottom nav z 3 tabami: AGENTS (kompaktowa lista) / PHONE (dial pad) / GUIDE (instrukcja + extension)
+- **Browser voice calling:** `useConversation()` z `@elevenlabs/react` — klik na agenta → WebSocket do ElevenLabs, live timer, "agent is speaking" indicator
+- **Phone calling:** Wpisanie extension → redirect `tel:+13854756347` (centralny numer Twilio)
+- Styl: pixel art, 90s retro (green+blue, Press Start 2P font, cream background). Keyboard support (0-9, Enter, Backspace, Escape).
 
 ### V3: Agent-to-Agent Voice Dialogues
 

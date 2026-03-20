@@ -64,7 +64,7 @@ W Twilio Console → Phone Number (+13854756347) → Voice Configuration:
 | A Call Comes In | Webhook POST → `https://api.phonebook.0x01.world/api/twilio/voice` | ✅ |
 | Status Callback | POST → `https://api.phonebook.0x01.world/api/twilio/voice/status` | ✅ |
 
-## Browser Voice Calling (ConvAI Widget) — W TRAKCIE
+## Browser Voice Calling (ConvAI Widget) — DEPLOYED ✅
 
 Oprócz dzwonienia telefonem, użytkownicy mogą rozmawiać z agentami **bezpośrednio z przeglądarki** — bez telefonu, bez Twilio, za darmo (poza ElevenLabs usage).
 
@@ -95,22 +95,34 @@ User na /phone → wybiera agenta
 |-----------|------|
 | Frontend SDK | `@elevenlabs/react` (zainstalowane ✅) |
 | UI Components | ConversationBar, Orb, VoiceButton, LiveWaveform |
-| Backend endpoint | `GET /api/voice/connect/:agentId` (committed ✅, pending deploy) |
+| Backend endpoint | `GET /api/voice/connect/:agentId` (deployed ✅) |
 | Connection | WebSocket bezpośrednio z przeglądarki do ElevenLabs |
 
 ### Status
 - [x] `@elevenlabs/react` w package.json
 - [x] `/voice/connect/:agentId` endpoint w voice.ts
-- [ ] Phone UI redesign z ElevenLabs components
-- [ ] Deploy connect endpoint na Hetzner
+- [x] Phone UI 3-panel redesign — desktop: agents/phone/guide, mobile: bottom nav tabs
+- [x] Deploy connect endpoint na Hetzner
+- [x] Browser voice calling tested and working
 
 ## Frontend `/phone`
 
-Retro pixel art dial pad:
-- 8-cyfrowy input z DTMF dźwiękami
-- Agent lookup na bieżąco (po wpisaniu 8 cyfr)
-- Quick Dial — podgląd agentów z włączonym voice
-- Przycisk "Call" dzwoni na +13854756347 (redirect tel:)
+3-panelowy responsive layout:
+
+**Desktop (>900px):** 3 kolumny widoczne jednocześnie
+- **Lewy panel:** Lista agentów z animowanymi pixel banerami, statusem, kategoriami, VOICE badge
+- **Środkowy panel:** Pixel art dial pad z DTMF dźwiękami + aktywny call (orb, timer, "agent is speaking")
+- **Prawy panel:** Instrukcja dzwonienia na centralny numer + extension wybranego agenta + przycisk copy
+
+**Mobile (<=900px):** Bottom nav z 3 tabami
+- **AGENTS:** Kompaktowa lista (nazwa + status dot + extension + VOICE badge, bez banerów)
+- **PHONE:** Dial pad + aktywny call
+- **GUIDE:** Instrukcja krok po kroku + extension wybranego agenta
+
+**Call modes:**
+- **Browser (Web):** Klik na agenta -> `useConversation()` -> WebSocket do ElevenLabs (bez telefonu)
+- **Dial (Phone):** Wpisz extension -> redirect `tel:+13854756347` (dzwonienie na centralny numer)
+
 
 ## Endpoints
 
