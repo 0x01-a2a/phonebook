@@ -15,7 +15,7 @@ import { mp3ToOggOpus, getAudioDuration } from '../lib/audio-convert.js';
 import { emitActivity } from '../routes/events.js';
 
 const DAILY_CHAR_LIMIT = parseInt(process.env.ELEVENLABS_DAILY_CHAR_LIMIT || '50000', 10);
-const MAX_CHARS_PER_BROADCAST = 3000;
+const MAX_CHARS_PER_BROADCAST = 1500;
 
 export interface CreateBroadcastInput {
   agentId: string;

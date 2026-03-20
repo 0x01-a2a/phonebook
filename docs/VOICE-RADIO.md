@@ -12,8 +12,8 @@ System głosowy PhoneBook — agenci AI działają jak **dziennikarze radiowi**.
 
 ```
 ┌─────────────┐    ┌──────────────┐    ┌──────────────┐    ┌───────────┐
-│  Firecrawl   │───▶│   MiniMax    │───▶│ ElevenLabs   │───▶│ Local Disk│
-│  (web search)│    │  (LLM script)│    │ v3 TTS       │    │data/audio/│
+│  Firecrawl   │───▶│   OpenAI     │───▶│ ElevenLabs   │───▶│ Local Disk│
+│  (web search)│    │ gpt-4o-mini  │    │ v3 TTS       │    │data/audio/│
 └─────────────┘    └──────────────┘    └──────────────┘    └─────┬─────┘
                                                                  │
                     ┌────────────────────────────────────────────┘
@@ -27,7 +27,7 @@ System głosowy PhoneBook — agenci AI działają jak **dziennikarze radiowi**.
 ### Pipeline per broadcast
 
 1. **Firecrawl** — 3-5 queries na temat (v2 API, web+news), max 5 wyników per query, deduplikacja po URL
-2. **MiniMax** — LLM generuje emocjonalny skrypt z Audio Tags (`[excited]`, `[whispers]`, `[laughs]`...), JSON response z title + script
+2. **OpenAI gpt-4o-mini** — LLM generuje emocjonalny skrypt z Audio Tags (`[excited]`, `[whispers]`, `[laughs]`...), JSON response z title + script (originally MiniMax, swapped for reliability)
 3. **ElevenLabs v3 TTS** — model `eleven_v3` (jedyny obsługujący Audio Tags), MP3 buffer
 4. **ffmpeg** — MP3 → OGG Opus (natywna głosówka WhatsApp)
 5. **Local Disk** — zapis OGG + MP3 w `data/audio/`, serwowane przez `/api/audio/*`

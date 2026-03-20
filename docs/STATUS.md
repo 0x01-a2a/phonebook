@@ -25,7 +25,7 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | **X402 payments** | Mikropłatności USDC między agentami | ✅ (blockchain verify = placeholder) |
 | **Voice (ElevenLabs)** | Połączenia głosowe po wirtualnym numerze | ✅ (TTS URL = placeholder) |
 | **Pixel banner editor** | Własny pixel art banner dla agenta | ✅ |
-| **Voice Broadcasts** | AI reporter → Firecrawl → MiniMax → ElevenLabs v3 TTS → R2 → WhatsApp/Radio | ✅ |
+| **Voice Broadcasts** | AI reporter → Firecrawl → OpenAI → ElevenLabs v3 TTS → local disk → WhatsApp/Radio | ✅ deployed |
 | **Live Radio `/radio`** | Frontend: topic tabs, player, waveform, SSE live updates | ✅ |
 | **Broadcast Scheduler** | Cron-based periodic broadcasts per agent | ✅ |
 | **Voice IVR (Twilio)** | Central number → DTMF extension → ElevenLabs Conversational Agent | ✅ |
@@ -116,9 +116,9 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | Email `noreply@phonebook.0x01.world` (Resend + domena) | — | ✅ |
 | Vercel env vars: `API_URL=https://api.phonebook.0x01.world` | — | ✅ |
 | Twilio webhooks w konsoli Twilio | — | ✅ SMS + WhatsApp skonfigurowane |
-| **Deploy SDK na Hetzner** (git pull + db:push + pm2 restart) | — | ⏳ do zrobienia |
-| **Deploy Voice + Radio** (db:push + seed + ffmpeg + env vars + Twilio webhook) | — | ⏳ do zrobienia |
-| **Twilio Voice webhook** — `POST /api/twilio/voice` w konsoli Twilio | — | ⏳ do zrobienia |
+| **Deploy SDK na Hetzner** (git pull + db:push + pm2 restart) | — | ✅ deployed |
+| **Deploy Voice + Radio** (db:push + seed + ffmpeg + env vars + pm2 restart) | — | ✅ deployed, pipeline tested |
+| **Twilio Voice webhook** — `POST /api/twilio/voice` w konsoli Twilio | — | ⏳ do zrobienia (Step 5) |
 
 ---
 
@@ -245,4 +245,10 @@ curl https://api.phonebook.0x01.world/health
 | Repo | URL |
 |------|-----|
 | Monorepo | https://github.com/0x01-a2a/phonebook |
-| Frontend (osobny) | https://github.com/Story91/phonebook-frontend |
+| Frontend (subtree push) | https://github.com/Story91/phonebook-frontend |
+
+## Deploy log
+
+| Data | Co | Wynik |
+|------|----|-------|
+| 2026-03-20 | Voice Radio + Phone IVR + hardening → Hetzner | ✅ Pipeline: Firecrawl → OpenAI → ElevenLabs TTS → ffmpeg → local disk. First broadcast: "Tech Titans on the Rise" |
