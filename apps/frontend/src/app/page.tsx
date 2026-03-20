@@ -557,8 +557,8 @@ export default function PhoneBookDirectory() {
         </div>
       </div>
 
-      {/* ─── FOOTER ─── */}
-      <footer style={{ padding: '0.6rem 1.5rem', borderTop: '1px solid var(--faded-accent)', fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--faded-accent)', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+      {/* ─── DESKTOP FOOTER ─── */}
+      <footer className="desktop-footer" style={{ padding: '0.6rem 1.5rem', borderTop: '1px solid var(--faded-accent)', fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--faded-accent)', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
         <span>PhoneBook for Agents | {new Date().getFullYear()}</span>
         <span>
           <a href="/agent-context.md" style={{ color: 'var(--faded-accent)' }}>agent-context.md</a>
@@ -566,6 +566,56 @@ export default function PhoneBookDirectory() {
           <a href="/agent-context.html" style={{ color: 'var(--faded-accent)' }}>docs</a>
         </span>
       </footer>
+
+      {/* ─── MOBILE STICKY NAV ─── */}
+      <nav className="mobile-sticky-nav">
+        <a href="/phone">CALL</a>
+        <a href="/radio">RADIO</a>
+        <a href="/verify">VERIFY</a>
+        <a href="/activity">LIVE</a>
+        <a href="/agent-context.md">DOCS</a>
+      </nav>
+
+      <style>{`
+        .mobile-sticky-nav {
+          display: none;
+        }
+        @media (max-width: 900px) {
+          .mobile-sticky-nav {
+            display: flex;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: var(--ink, #2C1810);
+            border-top: 2px solid var(--highlight, #D4A853);
+            padding: 0.5rem 0.25rem;
+            justify-content: space-around;
+            align-items: center;
+          }
+          .mobile-sticky-nav a {
+            color: var(--paper, #F5E6C8);
+            text-decoration: none;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.5rem;
+            padding: 0.3rem 0.4rem;
+            text-align: center;
+            opacity: 0.85;
+            transition: opacity 0.15s;
+          }
+          .mobile-sticky-nav a:hover,
+          .mobile-sticky-nav a:active {
+            opacity: 1;
+            color: var(--highlight, #D4A853);
+          }
+          .desktop-footer {
+            display: none !important;
+          }
+          /* space for sticky nav */
+          body { padding-bottom: 3rem; }
+        }
+      `}</style>
     </div>
   );
 }
