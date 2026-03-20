@@ -161,6 +161,31 @@ function createRingTone(ctx: AudioContext): { stop: () => void } {
   };
 }
 
+/* ── Disconnect tone (busy signal: 480+620 Hz, short beeps) ── */
+function playDisconnectTone(ctx: AudioContext) {
+  const osc1 = ctx.createOscillator();
+  const osc2 = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc1.frequency.value = 480;
+  osc2.frequency.value = 620;
+  gain.gain.value = 0;
+  osc1.connect(gain);
+  osc2.connect(gain);
+  gain.connect(ctx.destination);
+  osc1.start();
+  osc2.start();
+
+  let t = ctx.currentTime;
+  for (let i = 0; i < 4; i++) {
+    gain.gain.setValueAtTime(0.07, t);
+    gain.gain.setValueAtTime(0, t + 0.25);
+    t += 0.5;
+  }
+
+  osc1.stop(t);
+  osc2.stop(t);
+}
+
 /* ── Nokia LCD Equalizer ── */
 function NokiaEqualizer({ isSpeaking }: { isSpeaking: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -394,7 +419,12 @@ export default function PhoneClient() {
     try { await conversation.endSession(); } catch {}
     setBrowserState('ended');
     if (timerRef.current) clearInterval(timerRef.current);
-  }, [conversation]);
+    // Play disconnect tone
+    try {
+      const ctx = getAudioCtx();
+      if (ctx) playDisconnectTone(ctx);
+    } catch {}
+  }, [conversation, getAudioCtx]);
 
   // Auto-disconnect after maxCallSeconds
   useEffect(() => {
@@ -624,10 +654,12 @@ export default function PhoneClient() {
           textAlign: 'center',
           letterSpacing: '0.15em',
           padding: '2px 0',
-        }}>
+          color: !isUnlimited && remaining <= 5 ? '#CC0000' : undefined,
+        }}
+          className={!isUnlimited && remaining <= 5 ? 'lcd-blink-fast' : !isUnlimited && remaining === 10 ? 'lcd-blink-once' : undefined}>
           {formatDuration(callDuration)}
           {!isUnlimited && (
-            <span style={{ fontSize: '0.5em', color: LCD.mid }}> / {formatDuration(maxCallSeconds)}</span>
+            <span style={{ fontSize: '0.5em', color: !isUnlimited && remaining <= 5 ? '#CC0000' : LCD.mid }}> / {formatDuration(maxCallSeconds)}</span>
           )}
         </div>
       )}
@@ -648,8 +680,11 @@ export default function PhoneClient() {
 
       {/* Remaining time warning */}
       {browserState === 'connected' && !isUnlimited && remaining <= 15 && (
-        <div style={{ ...lcdFont, fontSize: '0.2rem', textAlign: 'center', letterSpacing: '0.05em' }}
-          className={remaining <= 10 ? 'lcd-blink' : undefined}>
+        <div style={{
+          ...lcdFont, fontSize: '0.2rem', textAlign: 'center', letterSpacing: '0.05em',
+          color: remaining <= 10 ? '#CC0000' : undefined,
+        }}
+          className={remaining <= 5 ? 'lcd-blink-fast' : remaining === 10 ? 'lcd-blink-once' : undefined}>
           {remaining <= 10 ? `! ENDING IN ${remaining}S` : `${remaining}S LEFT`}
         </div>
       )}
@@ -1031,6 +1066,10 @@ export default function PhoneClient() {
         @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 0.9; } 50% { transform: scale(1.1); opacity: 1; } }
         @keyframes ring-shake { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-12deg); } 75% { transform: rotate(12deg); } }
         .lcd-blink { animation: blink 1s step-end infinite; }
+        @keyframes blink-fast { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+        .lcd-blink-fast { animation: blink-fast 0.4s step-end infinite; }
+        @keyframes blink-once { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .lcd-blink-once { animation: blink-once 0.6s ease 1; }
 
         .phone-desktop { display: flex !important; }
         .phone-mobile { display: none !important; }

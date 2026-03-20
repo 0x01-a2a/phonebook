@@ -511,14 +511,53 @@ export default function RadioClient() {
         ) : (
           /* Playing — DJ or broadcast */
           <div>
-            {/* Winamp Equalizer */}
-            <div style={{ marginBottom: 12 }}>
+            {/* Winamp Equalizer — centered with side panels on desktop */}
+            <div className="radio-eq-row" style={{ marginBottom: 12 }}>
+              {/* Left panel — frequency labels */}
+              <div className="radio-eq-side" style={{
+                fontFamily: 'var(--font-pixel)',
+                fontSize: '0.25rem',
+                color: PX.grayLight,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                padding: '4px 0',
+                textAlign: 'right',
+                lineHeight: 1.4,
+                minWidth: 60,
+              }}>
+                <span style={{ color: PX.red }}>HIGH</span>
+                <span style={{ color: '#CCCC00' }}>MID</span>
+                <span style={{ color: PX.green }}>LOW</span>
+                <span style={{ fontSize: '0.2rem', marginTop: 4 }}>dB</span>
+              </div>
+
               <WinampEqualizer
                 analyser={analyserRef.current}
                 isPlaying={isPlaying}
                 width={400}
                 height={120}
               />
+
+              {/* Right panel — radio info */}
+              <div className="radio-eq-side" style={{
+                fontFamily: 'var(--font-pixel)',
+                fontSize: '0.25rem',
+                color: PX.grayLight,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                padding: '4px 0',
+                minWidth: 60,
+                lineHeight: 1.4,
+              }}>
+                <span style={{ color: PX.green }}>FM 0x01</span>
+                <span>{isPlaying ? 'ON AIR' : 'PAUSED'}</span>
+                <span style={{ color: PX.blue }}>{broadcasts.length} TRK</span>
+                <span style={{ fontSize: '0.2rem', color: isDjPlaying ? PX.blue : PX.green }}>
+                  {isDjPlaying ? 'DJ' : 'LIVE'}
+                </span>
+              </div>
             </div>
 
             {/* Agent/DJ name + duration */}
@@ -707,6 +746,23 @@ export default function RadioClient() {
         </span>
         <a href="/" style={{ color: PX.grayLight, textDecoration: 'none' }}>&lt; BACK</a>
       </footer>
+
+      <style>{`
+        .radio-eq-row {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+        }
+        .radio-eq-side {
+          display: flex !important;
+        }
+        @media (max-width: 768px) {
+          .radio-eq-side {
+            display: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

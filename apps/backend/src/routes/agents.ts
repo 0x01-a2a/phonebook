@@ -4,7 +4,7 @@ import { z } from 'zod';
 import crypto, { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { emitActivity } from './events.js';
-import { requireAgentOwnership } from '../auth.js';
+import { requireAgentOwnership, requireAgentAuth, type AuthenticatedAgent } from '../auth.js';
 import { verifySolanaClaimSignature, buildClaimMessage } from '../verify-solana.js';
 import { sendClaimVerificationEmail } from '../services/send-email.js';
 import { verifyTweetContainsCode } from '../services/verify-tweet.js';
@@ -358,6 +358,81 @@ export async function agentsRouter(fastify: FastifyInstance) {
       agentId: id,
       name: updated.name,
     });
+
+    return updated;
+  });
+
+  // Update featured status (requires agent auth)
+  fastify.patch('/:id/featured', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const agent = (request as any).agent as AuthenticatedAgent;
+
+    if (agent.id !== id) {
+      reply.code(403);
+      return { error: 'You can only set featured on your own agent' };
+    }
+
+    const { featured } = request.body as { featured: boolean };
+    if (typeof featured !== 'boolean') {
+      reply.code(400);
+      return { error: 'featured must be a boolean' };
+    }
+
+    const updated = (await db.update(agents)
+      .set({ featured, updatedAt: new Date() })
+      .where(eq(agents.id, id))
+      .returning() as any[])[0];
+
+    if (!updated) {
+      reply.code(404);
+      return { error: 'Agent not found' };
+    }
+
+    return updated;
+  });
+
+  // Update backup agent (requires agent auth)
+  fastify.patch('/:id/backup', {
+    preHandler: requireAgentAuth,
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const agent = (request as any).agent as AuthenticatedAgent;
+
+    if (agent.id !== id) {
+      reply.code(403);
+      return { error: 'You can only set backup on your own agent' };
+    }
+
+    const { backupAgentId } = request.body as { backupAgentId: string | null };
+
+    if (backupAgentId !== null) {
+      if (typeof backupAgentId !== 'string') {
+        reply.code(400);
+        return { error: 'backupAgentId must be a string or null' };
+      }
+
+      const backupExists = await db.select({ id: agents.id })
+        .from(agents)
+        .where(eq(agents.id, backupAgentId))
+        .limit(1);
+
+      if (!backupExists.length) {
+        reply.code(404);
+        return { error: 'Backup agent not found' };
+      }
+    }
+
+    const updated = (await db.update(agents)
+      .set({ backupAgentId, updatedAt: new Date() })
+      .where(eq(agents.id, id))
+      .returning() as any[])[0];
+
+    if (!updated) {
+      reply.code(404);
+      return { error: 'Agent not found' };
+    }
 
     return updated;
   });
