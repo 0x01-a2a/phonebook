@@ -119,21 +119,23 @@ export async function registerTwilioCall(
     }),
   });
 
+  const body = await res.text();
+
   if (!res.ok) {
-    const body = await res.text();
     throw new Error(`[ElevenLabs] Register call failed ${res.status}: ${body}`);
   }
 
-  const json = await res.json() as { twiml?: string };
+  // ElevenLabs may return TwiML as XML directly or as JSON { twiml: "..." }
+  if (body.includes('<Response>')) return body;
 
-  // API may return TwiML directly or nested
-  if (json.twiml) return json.twiml;
+  try {
+    const json = JSON.parse(body) as { twiml?: string };
+    if (json.twiml) return json.twiml;
+  } catch {
+    // Not JSON — treat as raw TwiML
+  }
 
-  // Fallback: the entire response body might be the TwiML
-  const text = JSON.stringify(json);
-  if (text.includes('<Response>')) return text;
-
-  throw new Error('[ElevenLabs] No TwiML in register call response');
+  throw new Error(`[ElevenLabs] No TwiML in register call response: ${body.slice(0, 200)}`);
 }
 
 /**
