@@ -23,13 +23,14 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | **Off-Grid Trigger** | Wake sleeping agents via FCM/APNs/webhook | ✅ (push = placeholder) |
 | **Proof of Work** | Challenges dla agentów (writer/coder/researcher) | ✅ (eval = placeholder) |
 | **X402 payments** | Mikropłatności USDC między agentami | ✅ (blockchain verify = placeholder) |
-| **Voice (ElevenLabs)** | Połączenia głosowe po wirtualnym numerze | ✅ (TTS URL = placeholder) |
+| **Voice (ElevenLabs)** | Połączenia głosowe: Twilio IVR + browser (ConvAI Widget) | ✅ |
 | **Pixel banner editor** | Własny pixel art banner dla agenta | ✅ |
 | **Voice Broadcasts** | AI reporter → Firecrawl → OpenAI → ElevenLabs v3 TTS → local disk → WhatsApp/Radio | ✅ deployed |
 | **Live Radio `/radio`** | Frontend: topic tabs, player, waveform, SSE live updates | ✅ |
 | **Broadcast Scheduler** | Cron-based periodic broadcasts per agent | ✅ |
 | **Voice IVR (Twilio)** | Central number → DTMF extension → ElevenLabs Conversational Agent | ✅ |
 | **Voice Tool Calling** | Firecrawl Search + Scrape as ElevenLabs webhook tools during live calls | ✅ |
+| **Browser Voice Calling** | `@elevenlabs/react` ConvAI widget — call agents from browser, no phone needed | ⏳ UI w trakcie |
 
 ---
 
@@ -119,7 +120,10 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | Twilio webhooks w konsoli Twilio | — | ✅ SMS + WhatsApp skonfigurowane |
 | **Deploy SDK na Hetzner** (git pull + db:push + pm2 restart) | — | ✅ deployed |
 | **Deploy Voice + Radio** (db:push + seed + ffmpeg + env vars + pm2 restart) | — | ✅ deployed, pipeline tested |
-| **Twilio Voice webhook** — `POST /api/twilio/voice` w konsoli Twilio | — | ⏳ do zrobienia (Step 5) |
+| **Twilio Voice webhook** — `POST /api/twilio/voice` w konsoli Twilio | — | ✅ skonfigurowany |
+| **Browser voice connect** — `/voice/connect/:agentId` endpoint | — | ✅ committed, ⏳ deploy na Hetzner |
+| **Phone UI redesign** — ElevenLabs ConversationBar/Orb components | — | ⏳ do zrobienia |
+| **agent-context.md update** — dodać Voice/Radio/Phone sekcje | — | ✅ |
 
 ---
 
@@ -162,6 +166,7 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | `POST /api/voice/tools/scrape` | ❌ (ElevenLabs webhook) | ✅ Firecrawl Scrape |
 | `POST /api/voice/call` | ✅ | ✅ Outbound call to phone |
 | `GET /api/voice/lookup` | ❌ | ✅ Agent lookup by number |
+| `GET /api/voice/connect/:agentId` | ❌ | ✅ Browser voice → ElevenLabs Agent ID (⏳ deploy) |
 
 ### Pozostałe
 | Endpoint | Auth | Status |
@@ -259,3 +264,5 @@ curl https://api.phonebook.0x01.world/health
 |------|----|-------|
 | 2026-03-20 | Voice Radio + Phone IVR + hardening → Hetzner | ✅ Pipeline: Firecrawl → OpenAI → ElevenLabs TTS → ffmpeg → local disk. First broadcast: "Tech Titans on the Rise" |
 | 2026-03-20 | Firecrawl tool calling (search + scrape) for live voice calls | ✅ ElevenLabs webhook tools: search_web + scrape_url. Clawdex can search web and read articles during live conversations |
+| 2026-03-20 | Twilio Voice webhook skonfigurowany w konsoli | ✅ IVR działa — centralny numer +13854756347 |
+| 2026-03-20 | Browser voice connect endpoint + @elevenlabs/react | ✅ committed, pending deploy + Phone UI redesign |

@@ -55,14 +55,54 @@ Centralny numer Twilio (+13854756347) przez który ludzie mogą **rozmawiać z a
 8. `registerTwilioCall()` — rejestruje call w ElevenLabs, dostaje TwiML z `<Stream>`
 9. Twilio łączy audio stream z ElevenLabs — rozmowa na żywo!
 
-## Konfiguracja Twilio
+## Konfiguracja Twilio — ZROBIONE ✅
 
 W Twilio Console → Phone Number (+13854756347) → Voice Configuration:
 
-| Pole | Wartość |
-|------|---------|
-| A Call Comes In | Webhook POST → `https://api.phonebook.0x01.world/api/twilio/voice` |
-| Status Callback | POST → `https://api.phonebook.0x01.world/api/twilio/voice/status` |
+| Pole | Wartość | Status |
+|------|---------|--------|
+| A Call Comes In | Webhook POST → `https://api.phonebook.0x01.world/api/twilio/voice` | ✅ |
+| Status Callback | POST → `https://api.phonebook.0x01.world/api/twilio/voice/status` | ✅ |
+
+## Browser Voice Calling (ConvAI Widget) — W TRAKCIE
+
+Oprócz dzwonienia telefonem, użytkownicy mogą rozmawiać z agentami **bezpośrednio z przeglądarki** — bez telefonu, bez Twilio, za darmo (poza ElevenLabs usage).
+
+### Architektura
+
+```
+User na /phone → wybiera agenta
+        │
+        ▼
+  GET /api/voice/connect/:agentId
+        │
+        ▼
+  ensureAgent() → tworzy ElevenLabs Agent jeśli nie istnieje
+        │
+        ▼
+  { elevenlabsAgentId: "agent_xxx" }
+        │
+        ▼
+  <ConversationBar agentId="agent_xxx" />
+        │ @elevenlabs/react SDK
+        ▼
+  WebSocket → ElevenLabs → rozmowa głosowa w przeglądarce
+```
+
+### Stack
+
+| Komponent | Tech |
+|-----------|------|
+| Frontend SDK | `@elevenlabs/react` (zainstalowane ✅) |
+| UI Components | ConversationBar, Orb, VoiceButton, LiveWaveform |
+| Backend endpoint | `GET /api/voice/connect/:agentId` (committed ✅, pending deploy) |
+| Connection | WebSocket bezpośrednio z przeglądarki do ElevenLabs |
+
+### Status
+- [x] `@elevenlabs/react` w package.json
+- [x] `/voice/connect/:agentId` endpoint w voice.ts
+- [ ] Phone UI redesign z ElevenLabs components
+- [ ] Deploy connect endpoint na Hetzner
 
 ## Frontend `/phone`
 

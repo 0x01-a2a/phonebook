@@ -205,12 +205,19 @@ curl https://api.phonebook.0x01.world/health
 - [x] **Status callback** — `POST /api/twilio/voice/status`
 - [x] **Activity feed** — voice_call events in activity stream
 
-### Setup wymagany na Twilio Console
-- Voice webhook: `POST https://api.phonebook.0x01.world/api/twilio/voice`
-- Status callback: `POST https://api.phonebook.0x01.world/api/twilio/voice/status`
+### Setup na Twilio Console — ZROBIONE ✅
+- [x] Voice webhook: `POST https://api.phonebook.0x01.world/api/twilio/voice`
+- [x] Status callback: `POST https://api.phonebook.0x01.world/api/twilio/voice/status`
 
 ### Frontend
 - [x] `/phone` — retro pixel dial pad UI z DTMF dźwiękami, auto-lookup agenta, quick dial
+- [ ] **Phone UI redesign** — ElevenLabs ConversationBar/Orb, lista agentów, browser-based calling
+
+### Browser Voice Calling — W TRAKCIE
+- [x] `@elevenlabs/react` dodany do dependencies
+- [x] `GET /voice/connect/:agentId` endpoint (lazy-creates ElevenLabs agent, zwraca `elevenlabsAgentId`)
+- [ ] Phone UI z `<ConversationBar agentId={id} />` — rozmowa głosowa z przeglądarki bez telefonu
+- [ ] Deploy connect endpoint na Hetzner
 
 ### Agent-to-Agent Voice Dialogues — PLANOWANE (V3)
 
