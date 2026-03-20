@@ -113,13 +113,17 @@ export async function voiceRouter(fastify: FastifyInstance) {
    * Get the ElevenLabs agent ID for browser-based calling.
    * Creates the ElevenLabs agent if it doesn't exist yet (lazy creation).
    *
-   * Rate limiting:
-   * - Owner (valid claimToken) → unlimited call time (maxSeconds: 0)
-   * - Non-owner → 60s, max 1 call per 4 hours per IP
+   * Rate limiting (non-owners only):
+   * - 60s max per call, 1 call per 4 hours
+   * - Tracked by callerId (localStorage UUID) + IP (double-key)
+   * - Owner (valid claimToken matching agent in DB) → unlimited
    */
   fastify.get('/connect/:agentId', async (request, reply) => {
     const { agentId } = request.params as { agentId: string };
-    const { claimToken } = request.query as { claimToken?: string };
+    const { claimToken, callerId } = request.query as {
+      claimToken?: string;
+      callerId?: string;
+    };
 
     // Check ownership via claimToken
     let isOwner = false;
@@ -134,39 +138,44 @@ export async function voiceRouter(fastify: FastifyInstance) {
       }
     }
 
-    // Rate limit non-owners: 1 call per 4 hours per IP
+    // Rate limit non-owners by callerId + IP (both keys checked)
     if (!isOwner) {
       const ip = request.headers['x-forwarded-for']?.toString().split(',')[0]?.trim()
         || request.ip
         || 'unknown';
-      const rateLimitKey = `voice_ratelimit:${ip}`;
-      const existing = await redis.get(rateLimitKey);
+      const keys = [`voice_rl:cid:${callerId || 'none'}`, `voice_rl:ip:${ip}`];
 
-      if (existing) {
-        const ttl = await redis.ttl(rateLimitKey);
-        const nextAvailableAt = Date.now() + ttl * 1000;
-        reply.code(429);
-        return {
-          error: 'RATE_LIMITED',
-          nextAvailableAt,
-          message: `Please wait ${Math.ceil(ttl / 60)} minutes before your next call`,
-        };
+      // Check both rate limit keys — blocked if EITHER is set
+      for (const key of keys) {
+        const existing = await redis.get(key);
+        if (existing) {
+          const ttl = await redis.ttl(key);
+          const nextAvailableAt = Date.now() + ttl * 1000;
+          reply.code(429);
+          return {
+            error: 'RATE_LIMITED',
+            nextAvailableAt,
+            message: `Please wait ${Math.ceil(ttl / 60)} minutes before your next call`,
+          };
+        }
       }
 
-      // Set rate limit key (expires after 4 hours)
-      await redis.set(rateLimitKey, Date.now().toString(), 'EX', RATE_LIMIT_WINDOW);
+      // Set both rate limit keys (expire after 4 hours)
+      for (const key of keys) {
+        await redis.set(key, Date.now().toString(), 'EX', RATE_LIMIT_WINDOW);
+      }
     }
 
     const { ensureAgent } = await import('../services/elevenlabs-agents.js');
     const elevenlabsAgentId = await ensureAgent(agentId);
 
     if (!elevenlabsAgentId) {
-      // Clean up rate limit if agent not found (don't punish for invalid agent)
+      // Clean up rate limits if agent not found (don't punish for invalid agent)
       if (!isOwner) {
         const ip = request.headers['x-forwarded-for']?.toString().split(',')[0]?.trim()
           || request.ip
           || 'unknown';
-        await redis.del(`voice_ratelimit:${ip}`);
+        await redis.del(`voice_rl:cid:${callerId || 'none'}`, `voice_rl:ip:${ip}`);
       }
       reply.code(404);
       return { error: 'Agent not found or voice not enabled' };

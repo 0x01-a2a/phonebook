@@ -320,6 +320,18 @@ export default function PhoneClient() {
       .catch(() => setLookupAgent(null));
   }, [digits]);
 
+  /* ── Persistent caller ID for rate limiting ── */
+  const getCallerId = useCallback((): string => {
+    try {
+      let id = localStorage.getItem('phonebook_caller_id');
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem('phonebook_caller_id', id);
+      }
+      return id;
+    } catch { return 'unknown'; }
+  }, []);
+
   /* ── Check ownership from localStorage ── */
   const getClaimToken = useCallback((agentId: string): string | null => {
     try {
@@ -336,11 +348,12 @@ export default function PhoneClient() {
       await navigator.mediaDevices.getUserMedia({ audio: true });
       setBrowserState('connecting');
 
-      // Build connect URL with optional claimToken for ownership
+      // Build connect URL with callerId + optional claimToken for ownership
       const claimToken = getClaimToken(agent.id);
-      const connectUrl = claimToken
-        ? `${API}/api/voice/connect/${agent.id}?claimToken=${encodeURIComponent(claimToken)}`
-        : `${API}/api/voice/connect/${agent.id}`;
+      const callerId = getCallerId();
+      const params = new URLSearchParams({ callerId });
+      if (claimToken) params.set('claimToken', claimToken);
+      const connectUrl = `${API}/api/voice/connect/${agent.id}?${params.toString()}`;
 
       const res = await fetch(connectUrl);
       if (!res.ok) {
@@ -374,7 +387,7 @@ export default function PhoneClient() {
       setBrowserState('error'); setError(msg.toUpperCase());
       if (timerRef.current) clearInterval(timerRef.current);
     }
-  }, [conversation, getAudioCtx, getClaimToken]);
+  }, [conversation, getAudioCtx, getClaimToken, getCallerId]);
 
   const endBrowserCall = useCallback(async () => {
     if (ringRef.current) { ringRef.current.stop(); ringRef.current = null; }
