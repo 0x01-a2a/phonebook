@@ -38,8 +38,8 @@ async function validateDependencies(): Promise<void> {
   if (!process.env.FIRECRAWL_API_KEY) {
     console.warn('[Startup] WARN: FIRECRAWL_API_KEY not set — news scraping will fail');
   }
-  if (!process.env.MINIMAX_API_KEY) {
-    console.warn('[Startup] WARN: MINIMAX_API_KEY not set — voice generation will fail');
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn('[Startup] WARN: OPENAI_API_KEY not set — script generation will fail');
   }
 
   const hasFfmpeg = await checkFfmpeg();

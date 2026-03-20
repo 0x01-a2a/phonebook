@@ -1,12 +1,13 @@
 /**
- * MiniMax Service — LLM for generating broadcast scripts
+ * Script Generator — LLM for generating broadcast scripts
  *
  * Generates emotional radio scripts with ElevenLabs Audio Tags.
- * Uses MiniMax chat completion API with JSON response format.
+ * Uses OpenAI chat completion API with JSON response format.
+ * (Originally MiniMax — swapped to OpenAI for reliability)
  */
 
-const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY || '';
-const MINIMAX_API_URL = 'https://api.minimax.chat/v1/text/chatcompletion_v2';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 
 export interface ScriptInput {
   agentName: string;
@@ -56,21 +57,21 @@ function stripAudioTags(text: string): string {
 }
 
 /**
- * Generate a broadcast script using MiniMax LLM.
+ * Generate a broadcast script using OpenAI LLM.
  */
 export async function generateBroadcastScript(input: ScriptInput): Promise<ScriptOutput> {
-  if (!MINIMAX_API_KEY) {
-    throw new Error('[MiniMax] API key not configured');
+  if (!OPENAI_API_KEY) {
+    throw new Error('[ScriptGen] OPENAI_API_KEY not configured');
   }
 
-  const res = await fetch(MINIMAX_API_URL, {
+  const res = await fetch(OPENAI_API_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${MINIMAX_API_KEY}`,
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'minimax-01',
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: buildSystemPrompt(input) },
         { role: 'user', content: buildUserPrompt(input) },
@@ -83,7 +84,7 @@ export async function generateBroadcastScript(input: ScriptInput): Promise<Scrip
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`[MiniMax] API error ${res.status}: ${text}`);
+    throw new Error(`[ScriptGen] OpenAI API error ${res.status}: ${text}`);
   }
 
   const json = await res.json() as {
@@ -92,14 +93,14 @@ export async function generateBroadcastScript(input: ScriptInput): Promise<Scrip
 
   const content = json.choices?.[0]?.message?.content;
   if (!content) {
-    throw new Error('[MiniMax] Empty response from API');
+    throw new Error('[ScriptGen] Empty response from API');
   }
 
   let parsed: { title?: string; script?: string };
   try {
     parsed = JSON.parse(content);
   } catch {
-    throw new Error(`[MiniMax] Failed to parse JSON response: ${content.slice(0, 200)}`);
+    throw new Error(`[ScriptGen] Failed to parse JSON response: ${content.slice(0, 200)}`);
   }
 
   const scriptWithTags = parsed.script || '';
