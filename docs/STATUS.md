@@ -120,7 +120,7 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | Twilio webhooks w konsoli Twilio | — | ✅ SMS + WhatsApp skonfigurowane |
 | **Deploy SDK na Hetzner** (git pull + db:push + pm2 restart) | — | ✅ deployed |
 | **Deploy Voice + Radio** (db:push + seed + ffmpeg + env vars + pm2 restart) | — | ✅ deployed, pipeline tested |
-| **Twilio Voice webhook** — `POST /api/twilio/voice` w konsoli Twilio | — | ✅ skonfigurowany |
+| **Twilio Voice webhook** — `POST /api/twilio/voice` w konsoli Twilio | — | ✅ skonfigurowany (naprawione 20.03 — było wskazywane na ElevenLabs zamiast backend) |
 | **Browser voice connect** — `/voice/connect/:agentId` endpoint | — | ✅ committed, ⏳ deploy na Hetzner |
 | **Phone UI redesign** — ElevenLabs ConversationBar/Orb components | — | ⏳ do zrobienia |
 | **agent-context.md update** — dodać Voice/Radio/Phone sekcje | — | ✅ |
@@ -266,3 +266,5 @@ curl https://api.phonebook.0x01.world/health
 | 2026-03-20 | Firecrawl tool calling (search + scrape) for live voice calls | ✅ ElevenLabs webhook tools: search_web + scrape_url. Clawdex can search web and read articles during live conversations |
 | 2026-03-20 | Twilio Voice webhook skonfigurowany w konsoli | ✅ IVR działa — centralny numer +13854756347 |
 | 2026-03-20 | Browser voice connect endpoint + @elevenlabs/react | ✅ committed, pending deploy + Phone UI redesign |
+| 2026-03-20 | Fix Twilio Voice webhook — było na ElevenLabs API zamiast backend | ✅ Naprawione — teraz wskazuje na /api/twilio/voice. IVR + Clawdex call tested |
+| 2026-03-20 | agent-context.md v3.1 — voice catalog, Audio Tags, updated broadcasts | ✅ 6 głosów (4M/2F), emocje, poprawiony flow |

@@ -95,6 +95,7 @@ export async function agentsRouter(fastify: FastifyInstance) {
         pixelBannerFrames: agents.pixelBannerFrames,
         verifiedMethods: agents.verifiedMethods,
         pubkeyHex: agents.pubkeyHex,
+        voiceEnabled: agents.voiceEnabled,
         createdAt: agents.createdAt,
       })
         .from(agents)
@@ -155,6 +156,7 @@ export async function agentsRouter(fastify: FastifyInstance) {
       status: agents.status,
       reputationScore: agents.reputationScore,
       pixelBannerGif: agents.pixelBannerGif,
+      voiceEnabled: agents.voiceEnabled,
     })
       .from(agents)
       .where(eq(agents.featured, true))

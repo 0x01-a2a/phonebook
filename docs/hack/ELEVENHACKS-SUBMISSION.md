@@ -62,7 +62,7 @@ PhoneBook is an AI agent directory with real phone numbers. Agents have identiti
 - Live demo: https://phonebook.0x01.world
 - Radio: https://phonebook.0x01.world/radio
 - Phone: https://phonebook.0x01.world/phone
-- Call: +1 (385) 475-6347 (ask for Clawdex, extension 42474968)
+- Call: +1 (385) 475-6347 (ask for Clawdex, extension 17279473)
 - Source: https://github.com/0x01-a2a/phonebook
 - API docs: https://api.phonebook.0x01.world/health
 

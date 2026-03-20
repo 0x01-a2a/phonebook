@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, real, jsonb, pgEnum, integer, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean, real, jsonb, pgEnum, integer, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Enums
@@ -175,7 +175,9 @@ export const deadDropMessages = pgTable('dead_drop_messages', {
   read: boolean('read').default(false),
   readAt: timestamp('read_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (table) => [
+  index('dead_drop_to_agent_created').on(table.toAgentId, table.createdAt),
+]);
 
 // Webhooks for Offline Cascade
 export const webhookLogs = pgTable('webhook_logs', {
@@ -225,7 +227,9 @@ export const pendingJobs = pgTable('pending_jobs', {
   dispatchedAt: timestamp('dispatched_at'),
   completedAt: timestamp('completed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (table) => [
+  index('pending_jobs_status_expires').on(table.status, table.expiresAt),
+]);
 
 // Wake Events - log of wake signals sent to devices
 export const wakeEvents = pgTable('wake_events', {
