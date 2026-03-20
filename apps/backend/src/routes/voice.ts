@@ -103,4 +103,22 @@ export async function voiceRouter(fastify: FastifyInstance) {
 
     return agent;
   });
+
+  /**
+   * Get the ElevenLabs agent ID for browser-based calling.
+   * Creates the ElevenLabs agent if it doesn't exist yet (lazy creation).
+   */
+  fastify.get('/connect/:agentId', async (request, reply) => {
+    const { agentId } = request.params as { agentId: string };
+
+    const { ensureAgent } = await import('../services/elevenlabs-agents.js');
+    const elevenlabsAgentId = await ensureAgent(agentId);
+
+    if (!elevenlabsAgentId) {
+      reply.code(404);
+      return { error: 'Agent not found or voice not enabled' };
+    }
+
+    return { elevenlabsAgentId };
+  });
 }
