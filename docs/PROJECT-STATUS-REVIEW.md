@@ -106,11 +106,16 @@ Agent z `broadcastEnabled: true` automatycznie:
 
 ## Co jest W TRAKCIE / do zrobienia
 
-### Browser Voice Calling (rozpoczęte, niegotowe)
+### Browser Voice Calling (GOTOWE, pending deploy)
 - [x] `@elevenlabs/react` w dependencies
 - [x] `GET /api/voice/connect/:agentId` endpoint (committed)
-- [ ] **Phone UI redesign** z ElevenLabs `<ConversationBar>` / Orb components
-- [ ] Deploy connect endpoint na Hetzner
+- [x] **Phone UI redesign** — useConversation() hook, agent directory sidebar z banerami, copy number
+- [x] **Next.js API rewrites** — proxy broadcasts/voice/audio do backendu (naprawia CORS)
+- [x] **Radio LATEST tab** — domyślnie pokazuje najnowsze broadcasty ze wszystkich kategorii
+- [x] **Logo responsive** — ukryte na mobile, zmniejszone na desktop
+- [x] **Fix voiceEnabled** — backend nie zwracał pola, frontend parsował zły klucz
+- [x] **DB indexes** — deadDropMessages(toAgentId, createdAt), pendingJobs(status, expiresAt)
+- [ ] Deploy connect endpoint + UI na Hetzner
 
 ### ElevenHacks Submission (deadline ~26 marca 2026)
 - [x] Submission description gotowy (`ELEVENHACKS-SUBMISSION.md`)
@@ -132,8 +137,8 @@ Agent z `broadcastEnabled: true` automatycznie:
 ## Podsumowanie priorytetów
 
 ### TERAZ (najbliższe dni — ElevenHacks deadline)
-1. **Phone UI redesign** — browser voice calling z ElevenLabs React components
-2. **Deploy connect endpoint** na Hetzner
+1. ~~**Phone UI redesign**~~ ✅ DONE — useConversation() + agent directory sidebar
+2. **Deploy na Hetzner** — git pull + db:push + pm2 restart (connect endpoint + UI + indexes)
 3. **Video demo** — nagranie i montaż
 4. **Social media posty** — X, LinkedIn, Instagram, TikTok
 

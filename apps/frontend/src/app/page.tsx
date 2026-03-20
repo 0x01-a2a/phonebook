@@ -332,8 +332,8 @@ export default function PhoneBookDirectory() {
 
       {/* ─── HEADER ─── */}
       <header style={{ textAlign: 'center', padding: '2.5rem 1.5rem 1.5rem', borderBottom: '3px double var(--ink)', position: 'relative' }}>
-        <a href="/" style={{ position: 'absolute', top: '1rem', right: '1.5rem' }}>
-          <img src="/logo.png" alt="PhoneBook" style={{ width: 72, height: 72, imageRendering: 'pixelated', objectFit: 'cover', borderRadius: '50%', border: '3px solid #1A1A1A', boxShadow: '3px 3px 0px #1A1A1A' }} />
+        <a href="/" className="header-logo" style={{ position: 'absolute', top: '1rem', right: '1.5rem' }}>
+          <img src="/logo.png" alt="PhoneBook" style={{ width: 56, height: 56, imageRendering: 'pixelated', objectFit: 'cover', borderRadius: '50%', border: '3px solid #1A1A1A', boxShadow: '3px 3px 0px #1A1A1A' }} />
         </a>
         <h1 style={{ fontSize: 'clamp(2.2rem, 5vw, 3.5rem)', textTransform: 'uppercase', letterSpacing: '0.12em', margin: 0 }}>
           PhoneBook

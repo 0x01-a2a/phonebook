@@ -294,16 +294,22 @@ input::placeholder, textarea::placeholder {
   .phonebook-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .header h1 {
     font-size: 2rem;
   }
-  
+
   .sidebar {
     border-right: none;
     border-bottom: 1px solid var(--faded-accent);
     padding-bottom: var(--space-md);
     margin-bottom: var(--space-md);
+  }
+}
+
+@media (max-width: 640px) {
+  .header-logo {
+    display: none !important;
   }
 }
 

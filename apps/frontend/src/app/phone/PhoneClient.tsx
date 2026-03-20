@@ -20,7 +20,7 @@ const PX = {
 };
 
 const TWILIO_NUMBER = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER || '+13854756347';
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API = '';
 
 const pixelBorder = (color = PX.border, width = 3) => ({
   border: `${width}px solid ${color}`,
@@ -38,6 +38,64 @@ interface AgentInfo {
   status: string;
   voiceEnabled?: boolean;
   description?: string;
+  pixelBannerFrames?: number[][][] | { pixels: number[][]; duration: number }[];
+}
+
+const CGA_PALETTE = [
+  '#000000', '#0000AA', '#00AA00', '#00AAAA',
+  '#AA0000', '#AA00AA', '#AA5500', '#AAAAAA',
+  '#555555', '#5555FF', '#55FF55', '#55FFFF',
+  '#FF5555', '#FF55FF', '#FFFF55', '#FFFFFF',
+];
+
+function PixelBanner({ frames }: { frames: number[][][] | { pixels: number[][]; duration: number }[] }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !frames?.length) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const normalized = (frames as unknown[]).map((raw) => {
+      if (Array.isArray(raw) && Array.isArray((raw as number[][])[0]))
+        return { pixels: raw as number[][], duration: 500 };
+      return { pixels: (raw as { pixels: number[][] }).pixels, duration: (raw as { duration: number }).duration || 500 };
+    }).filter(f => f.pixels?.length);
+    if (!normalized.length) return;
+    const pw = canvas.width / 40;
+    const ph = canvas.height / 8;
+    const drawFrame = (pixels: number[][]) => {
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 40; x++) {
+          const idx = pixels[y]?.[x] ?? 0;
+          if (idx > 0) {
+            ctx.fillStyle = CGA_PALETTE[idx] || '#000';
+            ctx.fillRect(x * pw, y * ph, pw, ph);
+          }
+        }
+      }
+    };
+    if (normalized.length === 1) { drawFrame(normalized[0].pixels); return; }
+    let frameIdx = 0;
+    drawFrame(normalized[0].pixels);
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      frameIdx = (frameIdx + 1) % normalized.length;
+      drawFrame(normalized[frameIdx].pixels);
+      timer = setTimeout(tick, normalized[frameIdx].duration);
+    };
+    timer = setTimeout(tick, normalized[0].duration);
+    return () => clearTimeout(timer);
+  }, [frames]);
+  return (
+    <canvas
+      ref={canvasRef}
+      width={400}
+      height={80}
+      style={{ width: '100%', height: 'auto', imageRendering: 'pixelated', display: 'block', background: '#0a0a0a' }}
+    />
+  );
 }
 
 /* ── Dial tone sound via Web Audio ── */
@@ -73,6 +131,8 @@ export default function PhoneClient() {
   const [error, setError] = useState('');
   const [pressedKey, setPressedKey] = useState<string | null>(null);
   const [voiceAgents, setVoiceAgents] = useState<AgentInfo[]>([]);
+  const [allAgents, setAllAgents] = useState<AgentInfo[]>([]);
+  const [copied, setCopied] = useState<string | null>(null);
   const [lookupAgent, setLookupAgent] = useState<AgentInfo | null>(null);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -101,13 +161,14 @@ export default function PhoneClient() {
     return audioCtxRef.current;
   }, []);
 
-  // Load voice-enabled agents for quick dial
+  // Load agents
   useEffect(() => {
-    fetch(`${API}/api/agents?limit=20&sortBy=reputationScore`)
+    fetch(`${API}/api/agents?limit=50&sortBy=reputationScore`)
       .then((r) => r.json())
       .then((data) => {
-        const list = Array.isArray(data) ? data : data.data || data.agents || [];
-        setVoiceAgents(list.filter((a: AgentInfo) => a.voiceEnabled));
+        const list: AgentInfo[] = Array.isArray(data) ? data : data.data || data.agents || [];
+        setAllAgents(list.filter((a) => a.phoneNumber));
+        setVoiceAgents(list.filter((a) => a.voiceEnabled));
       })
       .catch(() => {});
   }, []);
@@ -342,18 +403,175 @@ export default function PhoneClient() {
         </button>
       </div>
 
-      {/* ── MAIN CONTENT ── */}
-      <div style={{
+      {/* ── MAIN CONTENT — two-column on desktop ── */}
+      <div className="phone-layout" style={{
         flex: 1,
         display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        padding: '1.5rem 1rem',
         gap: '1rem',
-        maxWidth: 480,
-        margin: '0 auto',
-        width: '100%',
+        padding: '1rem',
+        overflow: 'hidden',
       }}>
+
+        {/* ── LEFT: AGENT DIRECTORY ── */}
+        {!isActive && (
+          <div className="phone-agents-sidebar" style={{
+            flex: '0 0 320px',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}>
+            <div style={{
+              fontFamily: 'var(--font-pixel)',
+              fontSize: '0.35rem',
+              color: PX.grayLight,
+              letterSpacing: '0.1em',
+              textAlign: 'center',
+              padding: '4px 0',
+            }}>
+              {mode === 'browser' ? 'CLICK TO CALL' : 'CLICK TO COPY NUMBER'} ({allAgents.length})
+            </div>
+            {allAgents.map((a) => {
+              const ext = a.phoneNumber?.match(/\+1-0x01-(\d{4})-(\d{4})/);
+              if (!ext) return null;
+              const extStr = ext[1] + '-' + ext[2];
+              const extDigits = ext[1] + ext[2];
+              const isSelected = digits === extDigits;
+              const hasVoice = a.voiceEnabled;
+              const isCopied = copied === a.id;
+              return (
+                <div
+                  key={a.id}
+                  onClick={() => {
+                    if (mode === 'browser' && hasVoice) {
+                      quickDial(a);
+                    } else {
+                      setDigits(extDigits);
+                      navigator.clipboard?.writeText(a.phoneNumber).catch(() => {});
+                      setCopied(a.id);
+                      setTimeout(() => setCopied(null), 1500);
+                    }
+                  }}
+                  style={{
+                    background: PX.black,
+                    cursor: 'pointer',
+                    overflow: 'hidden',
+                    ...pixelBorder(isSelected ? PX.green : isCopied ? PX.blue : PX.gray, 2),
+                    transition: 'box-shadow 0.1s',
+                  }}
+                >
+                  {/* Banner — same as main page */}
+                  {a.pixelBannerFrames?.length ? (
+                    <PixelBanner frames={a.pixelBannerFrames} />
+                  ) : (
+                    <div style={{
+                      width: '100%',
+                      aspectRatio: '5/1',
+                      background: '#0a0a0a',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontFamily: 'var(--font-pixel)',
+                      fontSize: '0.25rem',
+                      color: '#333',
+                      letterSpacing: '0.1em',
+                    }}>
+                      NO BANNER
+                    </div>
+                  )}
+                  {/* Agent info */}
+                  <div style={{ padding: '6px 8px' }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      marginBottom: 3,
+                    }}>
+                      <span style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        background: a.status === 'online' ? PX.green : a.status === 'busy' ? '#D4A853' : PX.red,
+                        display: 'inline-block',
+                        flexShrink: 0,
+                      }} />
+                      <span style={{
+                        fontFamily: 'var(--font-pixel)',
+                        fontSize: '0.3rem',
+                        color: isSelected ? PX.green : PX.white,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        flex: 1,
+                      }}>
+                        {a.name}
+                      </span>
+                      {hasVoice && (
+                        <span style={{
+                          fontFamily: 'var(--font-pixel)',
+                          fontSize: '0.22rem',
+                          color: PX.green,
+                          flexShrink: 0,
+                        }}>
+                          VOICE
+                        </span>
+                      )}
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}>
+                      <span style={{
+                        fontFamily: 'var(--font-pixel)',
+                        fontSize: '0.28rem',
+                        color: PX.blue,
+                        letterSpacing: '0.05em',
+                      }}>
+                        +1-0x01-{extStr}
+                      </span>
+                      {isCopied && (
+                        <span style={{
+                          fontFamily: 'var(--font-pixel)',
+                          fontSize: '0.22rem',
+                          color: PX.blue,
+                        }}>
+                          COPIED!
+                        </span>
+                      )}
+                    </div>
+                    {a.description && (
+                      <div style={{
+                        fontFamily: 'var(--font-pixel)',
+                        fontSize: '0.22rem',
+                        color: PX.grayLight,
+                        marginTop: 3,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        lineHeight: 1.8,
+                      }}>
+                        {a.description}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── RIGHT: PHONE ── */}
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '1rem',
+          maxWidth: 400,
+          margin: '0 auto',
+          width: '100%',
+        }}>
 
         {/* ── ACTIVE CALL DISPLAY ── */}
         {isActive && selectedAgent && (
@@ -364,197 +582,100 @@ export default function PhoneClient() {
             ...pixelBorder(PX.green, 3),
             textAlign: 'center',
           }}>
-            {/* Pulsing orb */}
             <div style={{
-              width: 64,
-              height: 64,
-              borderRadius: '50%',
+              width: 64, height: 64, borderRadius: '50%',
               background: browserState === 'connected'
                 ? `radial-gradient(circle, ${PX.green}, ${PX.greenDark})`
                 : `radial-gradient(circle, ${PX.blue}, ${PX.blueDark})`,
               margin: '0 auto 16px',
               animation: browserState === 'connected' ? 'pulse 2s ease-in-out infinite' : 'pulse 1s ease-in-out infinite',
-              boxShadow: browserState === 'connected'
-                ? `0 0 20px ${PX.green}40`
-                : `0 0 20px ${PX.blue}40`,
+              boxShadow: browserState === 'connected' ? `0 0 20px ${PX.green}40` : `0 0 20px ${PX.blue}40`,
             }} />
-
-            <div style={{
-              fontFamily: 'var(--font-pixel)',
-              fontSize: '0.6rem',
-              color: PX.green,
-              marginBottom: 4,
-            }}>
+            <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.6rem', color: PX.green, marginBottom: 4 }}>
               {selectedAgent.name}
             </div>
-            <div style={{
-              fontFamily: 'var(--font-pixel)',
-              fontSize: '0.35rem',
-              color: statusColor,
-              letterSpacing: '0.1em',
-              marginBottom: 16,
-            }}>
+            <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.35rem', color: statusColor, letterSpacing: '0.1em', marginBottom: 16 }}>
               {statusText}
             </div>
-
             {conversation.isSpeaking && (
-              <div style={{
-                fontFamily: 'var(--font-pixel)',
-                fontSize: '0.3rem',
-                color: PX.blue,
-                letterSpacing: '0.1em',
-                marginBottom: 12,
-              }}>
+              <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.3rem', color: PX.blue, letterSpacing: '0.1em', marginBottom: 12 }}>
                 AGENT IS SPEAKING...
               </div>
             )}
-
-            <button
-              onClick={endBrowserCall}
-              style={{
-                fontFamily: 'var(--font-pixel)',
-                fontSize: '0.5rem',
-                padding: '10px 32px',
-                background: PX.red,
-                color: PX.white,
-                cursor: 'pointer',
-                ...pixelBorder(PX.redDark, 2),
-                lineHeight: 1.8,
-              }}
-            >
+            <button onClick={endBrowserCall} style={{
+              fontFamily: 'var(--font-pixel)', fontSize: '0.5rem', padding: '10px 32px',
+              background: PX.red, color: PX.white, cursor: 'pointer', ...pixelBorder(PX.redDark, 2), lineHeight: 1.8,
+            }}>
               HANG UP
             </button>
           </div>
         )}
 
-        {/* ── PHONE DISPLAY (when not in active call) ── */}
+        {/* ── PHONE DISPLAY ── */}
         {!isActive && (
           <>
-            <div style={{
-              width: '100%',
-              background: PX.black,
-              padding: '1rem',
-              ...pixelBorder(PX.border, 3),
-            }}>
-              {/* Status bar */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 8,
-                fontFamily: 'var(--font-pixel)',
-                fontSize: '0.35rem',
-                letterSpacing: '0.1em',
-              }}>
+            <div style={{ width: '100%', background: PX.black, padding: '1rem', ...pixelBorder(PX.border, 3) }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, fontFamily: 'var(--font-pixel)', fontSize: '0.35rem', letterSpacing: '0.1em' }}>
                 <span style={{ color: PX.grayLight }}>EXTENSION</span>
                 <span style={{ color: statusColor }}>{statusText}</span>
               </div>
-
-              {/* Number display */}
               <div style={{
-                fontFamily: 'var(--font-pixel)',
-                fontSize: 'clamp(1rem, 5vw, 1.6rem)',
-                color: digits.length === 8 ? PX.green : PX.white,
-                textAlign: 'center',
-                padding: '0.75rem 0',
-                letterSpacing: '0.15em',
-                minHeight: '3rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderBottom: `2px solid ${PX.gray}`,
-                borderTop: `2px solid ${PX.gray}`,
+                fontFamily: 'var(--font-pixel)', fontSize: 'clamp(1rem, 5vw, 1.6rem)',
+                color: digits.length === 8 ? PX.green : PX.white, textAlign: 'center',
+                padding: '0.75rem 0', letterSpacing: '0.15em', minHeight: '3rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderBottom: `2px solid ${PX.gray}`, borderTop: `2px solid ${PX.gray}`,
               }}>
                 {digits.length > 0 ? (
                   <span>
                     <span style={{ color: PX.grayLight, fontSize: '0.6em' }}>0x01-</span>
                     {formatExtension(digits)}
-                    {digits.length < 8 && (
-                      <span style={{ color: PX.grayLight, animation: 'blink 1s step-end infinite' }}>_</span>
-                    )}
+                    {digits.length < 8 && <span style={{ color: PX.grayLight, animation: 'blink 1s step-end infinite' }}>_</span>}
                   </span>
                 ) : (
-                  <span style={{ color: PX.grayLight, fontSize: '0.5em' }}>
-                    ENTER EXTENSION...
-                  </span>
+                  <span style={{ color: PX.grayLight, fontSize: '0.5em' }}>ENTER EXTENSION...</span>
                 )}
               </div>
-
-              {/* Agent info preview */}
               {lookupAgent && (
                 <div style={{
-                  marginTop: 8,
-                  padding: '6px 8px',
+                  marginTop: 8, padding: '6px 8px',
                   background: lookupAgent.voiceEnabled ? 'rgba(0,204,68,0.1)' : 'rgba(204,0,0,0.1)',
                   border: `1px solid ${lookupAgent.voiceEnabled ? PX.green : PX.red}`,
-                  fontFamily: 'var(--font-pixel)',
-                  fontSize: '0.35rem',
+                  fontFamily: 'var(--font-pixel)', fontSize: '0.35rem',
                   color: lookupAgent.voiceEnabled ? PX.green : PX.red,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  letterSpacing: '0.05em',
-                  lineHeight: 1.8,
+                  display: 'flex', justifyContent: 'space-between', letterSpacing: '0.05em', lineHeight: 1.8,
                 }}>
                   <span>&gt; {lookupAgent.name}</span>
                   <span>{lookupAgent.voiceEnabled ? 'VOICE ON' : 'NO VOICE'}</span>
                 </div>
               )}
-
               {error && (
-                <div style={{
-                  marginTop: 8,
-                  fontFamily: 'var(--font-pixel)',
-                  fontSize: '0.35rem',
-                  color: PX.red,
-                  textAlign: 'center',
-                  letterSpacing: '0.05em',
-                }}>
+                <div style={{ marginTop: 8, fontFamily: 'var(--font-pixel)', fontSize: '0.35rem', color: PX.red, textAlign: 'center', letterSpacing: '0.05em' }}>
                   ! {error}
                 </div>
               )}
             </div>
 
             {/* ── DIAL PAD ── */}
-            <div style={{
-              width: '100%',
-              background: PX.black,
-              padding: '1rem',
-              ...pixelBorder(PX.border, 3),
-            }}>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: 8,
-              }}>
+            <div style={{ width: '100%', background: PX.black, padding: '1rem', ...pixelBorder(PX.border, 3) }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                 {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map((key) => (
                   <button
                     key={key}
                     onClick={() => addDigit(key)}
                     disabled={digits.length >= 8}
                     style={{
-                      fontFamily: 'var(--font-pixel)',
-                      fontSize: 'clamp(0.6rem, 3vw, 0.9rem)',
+                      fontFamily: 'var(--font-pixel)', fontSize: 'clamp(0.6rem, 3vw, 0.9rem)',
                       padding: 'clamp(8px, 2vw, 14px)',
-                      background: pressedKey === key ? PX.green
-                        : digits.length >= 8 ? PX.gray
-                        : PX.black,
-                      color: pressedKey === key ? PX.black
-                        : digits.length >= 8 ? PX.grayLight
-                        : PX.white,
+                      background: pressedKey === key ? PX.green : digits.length >= 8 ? PX.gray : PX.black,
+                      color: pressedKey === key ? PX.black : digits.length >= 8 ? PX.grayLight : PX.white,
                       cursor: digits.length >= 8 ? 'not-allowed' : 'pointer',
                       ...pixelBorder(pressedKey === key ? PX.greenDark : PX.gray, 2),
-                      transition: 'background 0.05s, color 0.05s',
-                      lineHeight: 1.5,
+                      transition: 'background 0.05s, color 0.05s', lineHeight: 1.5,
                     }}
                   >
                     {key}
-                    <div style={{
-                      fontFamily: 'var(--font-pixel)',
-                      fontSize: '0.25rem',
-                      color: PX.grayLight,
-                      marginTop: 2,
-                      letterSpacing: '0.1em',
-                    }}>
+                    <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.25rem', color: PX.grayLight, marginTop: 2, letterSpacing: '0.1em' }}>
                       {key === '1' ? '' : key === '2' ? 'ABC' : key === '3' ? 'DEF' :
                        key === '4' ? 'GHI' : key === '5' ? 'JKL' : key === '6' ? 'MNO' :
                        key === '7' ? 'PQRS' : key === '8' ? 'TUV' : key === '9' ? 'WXYZ' :
@@ -563,64 +684,30 @@ export default function PhoneClient() {
                   </button>
                 ))}
               </div>
-
-              {/* Action buttons */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr 1fr',
-                gap: 8,
-                marginTop: 8,
-              }}>
-                <button
-                  onClick={backspace}
-                  disabled={digits.length === 0}
-                  style={{
-                    fontFamily: 'var(--font-pixel)',
-                    fontSize: '0.4rem',
-                    padding: '10px',
-                    background: PX.black,
-                    color: digits.length > 0 ? PX.white : PX.grayLight,
-                    cursor: digits.length === 0 ? 'not-allowed' : 'pointer',
-                    ...pixelBorder(PX.gray, 2),
-                    lineHeight: 1.8,
-                  }}
-                >
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 8 }}>
+                <button onClick={backspace} disabled={digits.length === 0} style={{
+                  fontFamily: 'var(--font-pixel)', fontSize: '0.4rem', padding: '10px',
+                  background: PX.black, color: digits.length > 0 ? PX.white : PX.grayLight,
+                  cursor: digits.length === 0 ? 'not-allowed' : 'pointer', ...pixelBorder(PX.gray, 2), lineHeight: 1.8,
+                }}>
                   &lt;DEL
                 </button>
-
-                <button
-                  onClick={dialFromPad}
+                <button onClick={dialFromPad}
                   disabled={digits.length !== 8 || (mode === 'browser' && !lookupAgent?.voiceEnabled)}
                   style={{
-                    fontFamily: 'var(--font-pixel)',
-                    fontSize: '0.4rem',
-                    padding: '10px',
+                    fontFamily: 'var(--font-pixel)', fontSize: '0.4rem', padding: '10px',
                     background: digits.length === 8 && (mode === 'dial' || lookupAgent?.voiceEnabled) ? PX.green : PX.gray,
                     color: digits.length === 8 && (mode === 'dial' || lookupAgent?.voiceEnabled) ? PX.black : PX.grayLight,
                     cursor: digits.length === 8 && (mode === 'dial' || lookupAgent?.voiceEnabled) ? 'pointer' : 'not-allowed',
-                    ...pixelBorder(
-                      digits.length === 8 && (mode === 'dial' || lookupAgent?.voiceEnabled) ? PX.greenDark : PX.grayLight,
-                      2,
-                    ),
+                    ...pixelBorder(digits.length === 8 && (mode === 'dial' || lookupAgent?.voiceEnabled) ? PX.greenDark : PX.grayLight, 2),
                     lineHeight: 1.8,
-                  }}
-                >
+                  }}>
                   {mode === 'browser' ? 'CALL' : 'DIAL'}
                 </button>
-
-                <button
-                  onClick={clearAll}
-                  style={{
-                    fontFamily: 'var(--font-pixel)',
-                    fontSize: '0.4rem',
-                    padding: '10px',
-                    background: PX.black,
-                    color: PX.white,
-                    cursor: 'pointer',
-                    ...pixelBorder(PX.gray, 2),
-                    lineHeight: 1.8,
-                  }}
-                >
+                <button onClick={clearAll} style={{
+                  fontFamily: 'var(--font-pixel)', fontSize: '0.4rem', padding: '10px',
+                  background: PX.black, color: PX.white, cursor: 'pointer', ...pixelBorder(PX.gray, 2), lineHeight: 1.8,
+                }}>
                   CLEAR
                 </button>
               </div>
@@ -628,103 +715,7 @@ export default function PhoneClient() {
           </>
         )}
 
-        {/* ── VOICE AGENTS LIST ── */}
-        {!isActive && voiceAgents.length > 0 && (
-          <div style={{
-            width: '100%',
-            ...pixelBorder(PX.border, 2),
-            background: PX.black,
-            padding: '0.75rem',
-          }}>
-            <div style={{
-              fontFamily: 'var(--font-pixel)',
-              fontSize: '0.35rem',
-              color: PX.grayLight,
-              letterSpacing: '0.1em',
-              marginBottom: 8,
-            }}>
-              {mode === 'browser' ? 'CLICK TO CALL' : 'QUICK DIAL'}
-            </div>
-            {voiceAgents.map((a) => {
-              const ext = a.phoneNumber?.match(/\+1-0x01-(\d{4})-(\d{4})/);
-              if (!ext) return null;
-              const extStr = ext[1] + '-' + ext[2];
-              const extDigits = ext[1] + ext[2];
-              const isSelected = digits === extDigits;
-              return (
-                <div
-                  key={a.id}
-                  onClick={() => quickDial(a)}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '5px 6px',
-                    fontFamily: 'var(--font-pixel)',
-                    fontSize: '0.32rem',
-                    cursor: 'pointer',
-                    background: isSelected ? 'rgba(0,204,68,0.15)' : 'transparent',
-                    borderBottom: '1px solid rgba(255,255,255,0.05)',
-                    lineHeight: 2.2,
-                  }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: '50%',
-                      background: a.status === 'online' ? PX.green : PX.red,
-                      display: 'inline-block',
-                      flexShrink: 0,
-                    }} />
-                    <span style={{ color: isSelected ? PX.green : PX.white }}>
-                      {a.name}
-                    </span>
-                  </span>
-                  <span style={{ color: PX.blue, letterSpacing: '0.08em' }}>
-                    {extStr}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ── INFO BOX ── */}
-        {!isActive && (
-          <div style={{
-            width: '100%',
-            padding: '0.75rem',
-            background: 'rgba(0,0,0,0.04)',
-            fontFamily: 'var(--font-pixel)',
-            fontSize: '0.3rem',
-            color: PX.gray,
-            lineHeight: 2.2,
-            ...pixelBorder(PX.grayLight, 2),
-          }}>
-            {mode === 'browser' ? (
-              <>
-                <div style={{ color: PX.green, letterSpacing: '0.1em', marginBottom: 4 }}>WEB CALL MODE</div>
-                <div>1. SELECT AGENT OR ENTER EXTENSION</div>
-                <div>2. PRESS <span style={{ color: PX.green }}>CALL</span> — ALLOW MIC</div>
-                <div>3. TALK LIVE — AGENT HEARS YOU</div>
-                <div style={{ marginTop: 8, color: PX.grayLight, fontSize: '0.25rem' }}>
-                  FREE — VOICE VIA BROWSER. NO PHONE NEEDED.
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ color: PX.blue, letterSpacing: '0.1em', marginBottom: 4 }}>PHONE CALL MODE</div>
-                <div>1. ENTER 8 DIGIT EXTENSION</div>
-                <div>2. PRESS <span style={{ color: PX.green }}>DIAL</span> TO CALL {TWILIO_NUMBER}</div>
-                <div>3. ENTER EXTENSION ON YOUR PHONE KEYPAD</div>
-                <div style={{ marginTop: 8, color: PX.grayLight, fontSize: '0.25rem' }}>
-                  STANDARD PHONE RATES APPLY.
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        </div>
       </div>
 
       {/* ── FOOTER ── */}
@@ -756,6 +747,16 @@ export default function PhoneClient() {
         @keyframes pulse {
           0%, 100% { transform: scale(1); opacity: 0.9; }
           50% { transform: scale(1.1); opacity: 1; }
+        }
+        @media (max-width: 768px) {
+          .phone-layout {
+            flex-direction: column !important;
+          }
+          .phone-agents-sidebar {
+            flex: none !important;
+            max-height: 250px;
+            overflow-y: auto;
+          }
         }
       `}</style>
     </div>

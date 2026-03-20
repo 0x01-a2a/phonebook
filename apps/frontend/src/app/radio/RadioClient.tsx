@@ -26,7 +26,7 @@ interface Broadcast {
   createdAt: string;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API = '';
 
 // Pixel art color palette (from logo)
 const PX = {
@@ -60,7 +60,7 @@ const pixelBorder = (color = PX.border, width = 3) => ({
 
 export default function RadioClient() {
   const [topics, setTopics] = useState<Topic[]>([]);
-  const [currentTopic, setCurrentTopic] = useState<string>('');
+  const [currentTopic, setCurrentTopic] = useState<string>('__latest__');
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [nowPlaying, setNowPlaying] = useState<Broadcast | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -80,7 +80,6 @@ export default function RadioClient() {
       .then((r) => r.json())
       .then((data: Topic[]) => {
         setTopics(data);
-        if (data.length > 0) setCurrentTopic(data[0].slug);
       })
       .catch(console.error);
   }, []);
@@ -88,7 +87,10 @@ export default function RadioClient() {
   // Load broadcasts when topic changes
   useEffect(() => {
     if (!currentTopic) return;
-    fetch(`${API}/api/broadcasts?topic=${currentTopic}&limit=20`)
+    const url = currentTopic === '__latest__'
+      ? `${API}/api/broadcasts?limit=20`
+      : `${API}/api/broadcasts?topic=${currentTopic}&limit=20`;
+    fetch(url)
       .then((r) => r.json())
       .then((data: Broadcast[]) => setBroadcasts(data))
       .catch(console.error);
@@ -98,14 +100,18 @@ export default function RadioClient() {
   const connectSSE = useCallback(() => {
     if (!currentTopic) return;
     esRef.current?.close();
-    const es = new EventSource(`${API}/api/broadcasts/stream?topic=${currentTopic}`);
+    const sseParam = currentTopic === '__latest__' ? '' : `?topic=${currentTopic}`;
+    const es = new EventSource(`${API}/api/broadcasts/stream${sseParam}`);
     esRef.current = es;
     es.onopen = () => setConnected(true);
     es.onmessage = (msg) => {
       try {
         const data = JSON.parse(msg.data);
         if (data.type === 'broadcast_published') {
-          fetch(`${API}/api/broadcasts?topic=${currentTopic}&limit=20`)
+          const fetchUrl = currentTopic === '__latest__'
+            ? `${API}/api/broadcasts?limit=20`
+            : `${API}/api/broadcasts?topic=${currentTopic}&limit=20`;
+          fetch(fetchUrl)
             .then((r) => r.json())
             .then((list: Broadcast[]) => {
               setBroadcasts(list);
@@ -138,8 +144,10 @@ export default function RadioClient() {
   }, []);
 
   const playBroadcast = useCallback((b: Broadcast) => {
-    const url = b.audioUrlMp3 || b.audioUrl;
-    if (!url) return;
+    const raw = b.audioUrlMp3 || b.audioUrl;
+    if (!raw) return;
+    // Convert absolute backend URLs to relative paths for proxy
+    const url = raw.replace(/^https?:\/\/[^/]+/, '');
     const audio = audioRef.current;
     if (!audio) return;
     ensureAudioContext();
@@ -274,11 +282,29 @@ export default function RadioClient() {
       {/* ── TOPIC TABS ── */}
       <div style={{
         display: 'flex',
-        gap: '0.5rem',
-        padding: '0.75rem 1rem',
+        gap: '0.35rem',
+        padding: '0.6rem 0.75rem',
         borderBottom: `2px solid ${PX.border}`,
         flexWrap: 'wrap',
+        justifyContent: 'center',
       }}>
+        <button
+          onClick={() => setCurrentTopic('__latest__')}
+          style={{
+            fontFamily: 'var(--font-pixel)',
+            fontSize: 'clamp(0.3rem, 1.2vw, 0.4rem)',
+            padding: '4px 8px',
+            background: currentTopic === '__latest__' ? PX.black : 'transparent',
+            color: currentTopic === '__latest__' ? PX.green : PX.black,
+            cursor: 'pointer',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            lineHeight: 1.8,
+            ...pixelBorder(currentTopic === '__latest__' ? PX.green : PX.grayLight, 2),
+          }}
+        >
+          {'*'} LATEST
+        </button>
         {topics.map((t) => {
           const active = currentTopic === t.slug;
           return (
@@ -287,8 +313,8 @@ export default function RadioClient() {
               onClick={() => setCurrentTopic(t.slug)}
               style={{
                 fontFamily: 'var(--font-pixel)',
-                fontSize: '0.45rem',
-                padding: '6px 12px',
+                fontSize: 'clamp(0.3rem, 1.2vw, 0.4rem)',
+                padding: '4px 8px',
                 background: active ? PX.black : 'transparent',
                 color: active ? PX.green : PX.black,
                 cursor: 'pointer',

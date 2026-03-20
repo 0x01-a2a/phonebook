@@ -16,6 +16,23 @@ const nextConfig = {
   env: {
     API_URL: process.env.API_URL || 'http://localhost:3001',
   },
+  async rewrites() {
+    const backend = process.env.API_URL || 'http://localhost:3001';
+    return [
+      {
+        source: '/api/broadcasts/:path*',
+        destination: `${backend}/api/broadcasts/:path*`,
+      },
+      {
+        source: '/api/voice/:path*',
+        destination: `${backend}/api/voice/:path*`,
+      },
+      {
+        source: '/api/audio/:path*',
+        destination: `${backend}/api/audio/:path*`,
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
