@@ -19,6 +19,14 @@ const PX = {
   border: '#2C2C2C',
 };
 
+/* ── Nokia LCD palette ── */
+const LCD = {
+  bg: '#9BBC0F',
+  dark: '#0F380F',
+  mid: '#306230',
+  light: '#8BAC0F',
+};
+
 const TWILIO_NUMBER = process.env.NEXT_PUBLIC_TWILIO_PHONE_NUMBER || '+13854756347';
 const TWILIO_DISPLAY = '+1 (385) 475-6347';
 const API = '';
@@ -136,7 +144,6 @@ function createRingTone(ctx: AudioContext): { stop: () => void } {
   osc1.start();
   osc2.start();
 
-  // Ring pattern: 0.06 vol for 2s, silence for 1s, repeat
   let t = ctx.currentTime;
   for (let i = 0; i < 3; i++) {
     gain.gain.setValueAtTime(0.06, t);
@@ -154,6 +161,81 @@ function createRingTone(ctx: AudioContext): { stop: () => void } {
   };
 }
 
+/* ── Nokia LCD Equalizer ── */
+function NokiaEqualizer({ isSpeaking }: { isSpeaking: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animRef = useRef<number>(0);
+  const barsRef = useRef<number[]>(new Array(16).fill(1));
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d')!;
+    const W = canvas.width;
+    const H = canvas.height;
+    const BAR_COUNT = 16;
+    const BAR_W = Math.floor(W / BAR_COUNT);
+    const GAP = 1;
+    const PXS = 2;
+
+    const draw = () => {
+      // LCD background
+      ctx.fillStyle = LCD.bg;
+      ctx.fillRect(0, 0, W, H);
+
+      // Update bar heights
+      for (let i = 0; i < BAR_COUNT; i++) {
+        const target = isSpeaking
+          ? 2 + Math.floor(Math.sin(Date.now() * 0.005 + i * 0.7) * 3 + Math.random() * 4)
+          : Math.random() < 0.15 ? 2 : 1;
+        barsRef.current[i] += (target - barsRef.current[i]) * 0.3;
+      }
+
+      // Draw bars
+      ctx.fillStyle = LCD.dark;
+      for (let i = 0; i < BAR_COUNT; i++) {
+        const barH = Math.max(1, Math.round(barsRef.current[i]));
+        const maxBlocks = Math.floor(H / (PXS + GAP));
+        const blocks = Math.min(barH, maxBlocks);
+        const x = i * BAR_W + GAP;
+        for (let b = 0; b < blocks; b++) {
+          const y = H - (b + 1) * (PXS + GAP);
+          ctx.fillRect(x, y, BAR_W - GAP * 2, PXS);
+        }
+      }
+
+      animRef.current = requestAnimationFrame(draw);
+    };
+
+    animRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [isSpeaking]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={192}
+      height={24}
+      style={{ width: '100%', height: 'auto', imageRendering: 'pixelated', display: 'block' }}
+    />
+  );
+}
+
+/* ═══════════════════════════════════════════════ */
+/* ═══════════  NOKIA STYLE HELPERS  ═══════════ */
+/* ═══════════════════════════════════════════════ */
+
+const NOKIA_BODY = '#2D3436';
+const NOKIA_BODY_LIGHT = '#3D4446';
+const NOKIA_BODY_EDGE = '#1A1D1E';
+const NOKIA_KEY_BG = '#3D4446';
+const NOKIA_KEY_PRESSED = '#555';
+
+const lcdFont: React.CSSProperties = {
+  fontFamily: 'var(--font-pixel)',
+  color: LCD.dark,
+};
+
 /* ════════════════════════════════════════════ */
 export default function PhoneClient() {
   const [mode, setMode] = useState<CallMode>('browser');
@@ -161,6 +243,7 @@ export default function PhoneClient() {
   const [browserState, setBrowserState] = useState<BrowserCallState>('idle');
   const [selectedAgent, setSelectedAgent] = useState<AgentInfo | null>(null);
   const [callDuration, setCallDuration] = useState(0);
+  const [maxCallSeconds, setMaxCallSeconds] = useState(MAX_CALL_SECONDS);
   const [error, setError] = useState('');
   const [pressedKey, setPressedKey] = useState<string | null>(null);
   const [voiceAgents, setVoiceAgents] = useState<AgentInfo[]>([]);
@@ -237,15 +320,43 @@ export default function PhoneClient() {
       .catch(() => setLookupAgent(null));
   }, [digits]);
 
+  /* ── Check ownership from localStorage ── */
+  const getClaimToken = useCallback((agentId: string): string | null => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('phonebook_my_agents') || '[]');
+      const found = stored.find((a: { id: string; claimToken?: string }) => a.id === agentId);
+      return found?.claimToken || null;
+    } catch { return null; }
+  }, []);
+
   /* ── BROWSER CALL ── */
   const startBrowserCall = useCallback(async (agent: AgentInfo) => {
     setSelectedAgent(agent); setBrowserState('requesting_mic'); setError(''); setCallDuration(0);
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
       setBrowserState('connecting');
-      const res = await fetch(`${API}/api/voice/connect/${agent.id}`);
-      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Agent voice not available'); }
-      const { elevenlabsAgentId } = await res.json();
+
+      // Build connect URL with optional claimToken for ownership
+      const claimToken = getClaimToken(agent.id);
+      const connectUrl = claimToken
+        ? `${API}/api/voice/connect/${agent.id}?claimToken=${encodeURIComponent(claimToken)}`
+        : `${API}/api/voice/connect/${agent.id}`;
+
+      const res = await fetch(connectUrl);
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        if (d.error === 'RATE_LIMITED') {
+          const waitMin = Math.ceil((d.nextAvailableAt - Date.now()) / 60000);
+          throw new Error(`LIMIT REACHED. NEXT CALL IN ${waitMin} MIN`);
+        }
+        throw new Error(d.error || 'Agent voice not available');
+      }
+      const data = await res.json();
+      const { elevenlabsAgentId } = data;
+
+      // Set max call seconds from backend (0 = unlimited for owners)
+      const serverMax = data.maxSeconds ?? MAX_CALL_SECONDS;
+      setMaxCallSeconds(serverMax === 0 ? 9999 : serverMax);
 
       // Play ringing tone while connecting
       setBrowserState('ringing');
@@ -263,7 +374,7 @@ export default function PhoneClient() {
       setBrowserState('error'); setError(msg.toUpperCase());
       if (timerRef.current) clearInterval(timerRef.current);
     }
-  }, [conversation, getAudioCtx]);
+  }, [conversation, getAudioCtx, getClaimToken]);
 
   const endBrowserCall = useCallback(async () => {
     if (ringRef.current) { ringRef.current.stop(); ringRef.current = null; }
@@ -272,13 +383,13 @@ export default function PhoneClient() {
     if (timerRef.current) clearInterval(timerRef.current);
   }, [conversation]);
 
-  // Auto-disconnect after MAX_CALL_SECONDS
+  // Auto-disconnect after maxCallSeconds
   useEffect(() => {
-    if (browserState === 'connected' && callDuration >= MAX_CALL_SECONDS) {
+    if (browserState === 'connected' && maxCallSeconds < 9999 && callDuration >= maxCallSeconds) {
       endBrowserCall();
-      setError(`CALL LIMIT ${MAX_CALL_SECONDS}S REACHED`);
+      setError(`CALL LIMIT ${maxCallSeconds}S REACHED`);
     }
-  }, [browserState, callDuration, endBrowserCall]);
+  }, [browserState, callDuration, maxCallSeconds, endBrowserCall]);
 
   const dialFromPad = useCallback(() => {
     if (digits.length !== 8) { setError('ENTER 8 DIGIT EXTENSION'); return; }
@@ -290,13 +401,8 @@ export default function PhoneClient() {
     const ext = agent.phoneNumber?.match(/\+1-0x01-(\d{4})-(\d{4})/);
     if (ext) setDigits(ext[1] + ext[2]);
     setSelectedAgent(agent);
-    if (mode === 'browser' && agent.voiceEnabled) {
-      startBrowserCall(agent);
-      setMobileTab('phone');
-    } else {
-      setMobileTab(mode === 'dial' ? 'guide' : 'phone');
-    }
-  }, [mode, startBrowserCall]);
+    setMobileTab('phone');
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -313,10 +419,9 @@ export default function PhoneClient() {
   const formatDuration = (sec: number) => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
   const formatExtension = (d: string) => d.length <= 4 ? d : d.slice(0, 4) + '-' + d.slice(4);
 
-  const remaining = MAX_CALL_SECONDS - callDuration;
+  const remaining = maxCallSeconds < 9999 ? maxCallSeconds - callDuration : 9999;
   const isActive = browserState === 'requesting_mic' || browserState === 'connecting' || browserState === 'ringing' || browserState === 'connected';
-  const statusColor = browserState === 'connected' ? (remaining <= 10 ? PX.red : PX.green) : browserState === 'ringing' ? PX.green : browserState === 'connecting' || browserState === 'requesting_mic' ? PX.blue : browserState === 'error' ? PX.red : PX.grayLight;
-  const statusText = browserState === 'idle' ? 'READY' : browserState === 'requesting_mic' ? 'MIC ACCESS...' : browserState === 'connecting' ? 'CONNECTING...' : browserState === 'ringing' ? 'RINGING...' : browserState === 'connected' ? `LIVE ${formatDuration(callDuration)} / ${formatDuration(MAX_CALL_SECONDS)}` : browserState === 'ended' ? `ENDED ${formatDuration(callDuration)}` : 'ERROR';
+  const isUnlimited = maxCallSeconds >= 9999;
 
   // Selected agent extension for guide panel
   const selExt = selectedAgent?.phoneNumber?.match(/\+1-0x01-(\d{4})-(\d{4})/);
@@ -340,7 +445,6 @@ export default function PhoneClient() {
         const isCopied = copied === a.id;
 
         if (!showBanners) {
-          // Compact list — mobile
           return (
             <div key={a.id} onClick={() => selectAgent(a)} style={{
               display: 'flex', alignItems: 'center', gap: 8,
@@ -361,7 +465,6 @@ export default function PhoneClient() {
           );
         }
 
-        // Full card with banner — desktop
         return (
           <div key={a.id} onClick={() => selectAgent(a)} style={{
             background: PX.black, cursor: 'pointer', overflow: 'hidden',
@@ -396,122 +499,364 @@ export default function PhoneClient() {
     </div>
   );
 
-  // ── PANEL: PHONE (center) ──
-  const phonePanel = (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', maxWidth: 400, margin: '0 auto', width: '100%' }}>
+  /* ═══════════════════════════════════════════
+     PANEL: NOKIA 3310 PHONE (center)
+     ═══════════════════════════════════════════ */
 
-      {/* Active call */}
-      {isActive && selectedAgent && (
-        <div style={{ width: '100%', background: PX.black, padding: '1.5rem 1rem', ...pixelBorder(remaining <= 10 && browserState === 'connected' ? PX.red : PX.green, 3), textAlign: 'center' }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: '50%',
-            background: browserState === 'connected' ? `radial-gradient(circle, ${remaining <= 10 ? PX.red : PX.green}, ${remaining <= 10 ? PX.redDark : PX.greenDark})` : browserState === 'ringing' ? `radial-gradient(circle, ${PX.green}, ${PX.greenDark})` : `radial-gradient(circle, ${PX.blue}, ${PX.blueDark})`,
-            margin: '0 auto 16px',
-            animation: browserState === 'ringing' ? 'ring-shake 0.3s ease-in-out infinite' : browserState === 'connected' ? 'pulse 2s ease-in-out infinite' : 'pulse 1s ease-in-out infinite',
-            boxShadow: browserState === 'connected' ? `0 0 20px ${remaining <= 10 ? PX.red : PX.green}40` : `0 0 20px ${browserState === 'ringing' ? PX.green : PX.blue}40`,
-          }} />
-          <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.6rem', color: PX.green, marginBottom: 4 }}>{selectedAgent.name}</div>
-          <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.35rem', color: statusColor, letterSpacing: '0.1em', marginBottom: 4 }}>{statusText}</div>
-          {browserState === 'connected' && (
-            <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.28rem', color: remaining <= 10 ? PX.red : PX.grayLight, letterSpacing: '0.1em', marginBottom: 12, animation: remaining <= 10 ? 'blink 0.5s step-end infinite' : 'none' }}>
-              {remaining <= 10 ? `! DISCONNECTING IN ${remaining}S` : `${remaining}S REMAINING`}
-            </div>
+  // ── LCD STATUS BAR ──
+  const lcdStatusBar = (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 6px', borderBottom: `1px solid ${LCD.mid}` }}>
+      {/* Signal bars */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 10 }}>
+        {[3, 5, 7, 9].map((h, i) => (
+          <div key={i} style={{ width: 3, height: h, background: LCD.dark }} />
+        ))}
+      </div>
+      {/* Title */}
+      <span style={{ ...lcdFont, fontSize: '0.22rem', letterSpacing: '0.08em' }}>PhoneBook</span>
+      {/* Battery */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <div style={{
+          width: 14, height: 8,
+          border: `1px solid ${LCD.dark}`,
+          display: 'flex', alignItems: 'center', padding: 1, gap: 1,
+        }}>
+          <div style={{ width: 3, height: 4, background: LCD.dark }} />
+          <div style={{ width: 3, height: 4, background: LCD.dark }} />
+          <div style={{ width: 3, height: 4, background: LCD.dark }} />
+        </div>
+        <div style={{ width: 2, height: 4, background: LCD.dark }} />
+      </div>
+    </div>
+  );
+
+  // ── LCD CONTENT: IDLE ──
+  const lcdIdle = (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '6px 8px', gap: 6 }}>
+      {/* Extension label */}
+      <div style={{ ...lcdFont, fontSize: '0.2rem', letterSpacing: '0.1em', textAlign: 'center' }}>
+        ENTER EXTENSION
+      </div>
+      {/* Digits display */}
+      <div style={{
+        ...lcdFont,
+        fontSize: 'clamp(0.7rem, 4vw, 1.1rem)',
+        textAlign: 'center',
+        padding: '4px 0',
+        minHeight: '1.6rem',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        letterSpacing: '0.12em',
+      }}>
+        {digits.length > 0 ? (
+          <span>
+            <span style={{ color: LCD.mid, fontSize: '0.6em' }}>0x01-</span>
+            {formatExtension(digits)}
+            {digits.length < 8 && <span className="lcd-blink">_</span>}
+          </span>
+        ) : (
+          <span style={{ color: LCD.mid, fontSize: '0.45em' }}>________</span>
+        )}
+      </div>
+      {/* Lookup result */}
+      {lookupAgent && (
+        <div style={{
+          ...lcdFont, fontSize: '0.25rem', textAlign: 'center',
+          padding: '3px 6px',
+          border: `1px solid ${LCD.mid}`,
+          letterSpacing: '0.05em', lineHeight: 1.8,
+        }}>
+          <div>&gt; {lookupAgent.name}</div>
+          <div style={{ color: lookupAgent.voiceEnabled ? LCD.dark : LCD.mid }}>
+            {lookupAgent.voiceEnabled ? 'VOICE READY' : 'NO VOICE'}
+          </div>
+        </div>
+      )}
+      {/* Error */}
+      {error && (
+        <div style={{ ...lcdFont, fontSize: '0.22rem', textAlign: 'center', letterSpacing: '0.05em' }} className="lcd-blink">
+          ! {error}
+        </div>
+      )}
+      {/* Status */}
+      {browserState === 'ended' && (
+        <div style={{ ...lcdFont, fontSize: '0.22rem', textAlign: 'center', color: LCD.mid }}>
+          CALL ENDED {formatDuration(callDuration)}
+        </div>
+      )}
+    </div>
+  );
+
+  // ── LCD CONTENT: ACTIVE CALL ──
+  const lcdActiveCall = (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '4px 8px', gap: 4 }}>
+      {/* Agent name */}
+      <div style={{ ...lcdFont, fontSize: '0.35rem', textAlign: 'center', letterSpacing: '0.08em', lineHeight: 1.8 }}>
+        {selectedAgent?.name || 'UNKNOWN'}
+      </div>
+
+      {/* Status line */}
+      <div style={{ ...lcdFont, fontSize: '0.22rem', textAlign: 'center', letterSpacing: '0.1em' }}
+        className={browserState === 'ringing' ? 'lcd-blink' : undefined}>
+        {browserState === 'requesting_mic' ? 'MIC ACCESS...'
+          : browserState === 'connecting' ? 'CONNECTING...'
+          : browserState === 'ringing' ? 'RINGING...'
+          : browserState === 'connected' ? 'CONNECTED' : ''}
+      </div>
+
+      {/* Timer (big) */}
+      {browserState === 'connected' && (
+        <div style={{
+          ...lcdFont,
+          fontSize: 'clamp(0.6rem, 3.5vw, 0.9rem)',
+          textAlign: 'center',
+          letterSpacing: '0.15em',
+          padding: '2px 0',
+        }}>
+          {formatDuration(callDuration)}
+          {!isUnlimited && (
+            <span style={{ fontSize: '0.5em', color: LCD.mid }}> / {formatDuration(maxCallSeconds)}</span>
           )}
-          {conversation.isSpeaking && <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.3rem', color: PX.blue, letterSpacing: '0.1em', marginBottom: 12 }}>AGENT IS SPEAKING...</div>}
-          <button onClick={endBrowserCall} style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.5rem', padding: '10px 32px', background: PX.red, color: PX.white, cursor: 'pointer', ...pixelBorder(PX.redDark, 2), lineHeight: 1.8 }}>HANG UP</button>
         </div>
       )}
 
-      {/* Dial display + pad */}
-      {!isActive && (
-        <>
-          <div style={{ width: '100%', background: PX.black, padding: '1rem', ...pixelBorder(PX.border, 3) }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, fontFamily: 'var(--font-pixel)', fontSize: '0.35rem', letterSpacing: '0.1em' }}>
-              <span style={{ color: PX.grayLight }}>EXTENSION</span>
-              <span style={{ color: statusColor }}>{statusText}</span>
-            </div>
-            <div style={{
-              fontFamily: 'var(--font-pixel)', fontSize: 'clamp(1rem, 5vw, 1.6rem)',
-              color: digits.length === 8 ? PX.green : PX.white, textAlign: 'center',
-              padding: '0.75rem 0', letterSpacing: '0.15em', minHeight: '3rem',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderBottom: `2px solid ${PX.gray}`, borderTop: `2px solid ${PX.gray}`,
-            }}>
-              {digits.length > 0 ? (
-                <span>
-                  <span style={{ color: PX.grayLight, fontSize: '0.6em' }}>0x01-</span>
-                  {formatExtension(digits)}
-                  {digits.length < 8 && <span style={{ color: PX.grayLight, animation: 'blink 1s step-end infinite' }}>_</span>}
-                </span>
-              ) : (
-                <span style={{ color: PX.grayLight, fontSize: '0.5em' }}>ENTER EXTENSION...</span>
-              )}
-            </div>
-            {lookupAgent && (
-              <div style={{
-                marginTop: 8, padding: '6px 8px',
-                background: lookupAgent.voiceEnabled ? 'rgba(0,204,68,0.1)' : 'rgba(204,0,0,0.1)',
-                border: `1px solid ${lookupAgent.voiceEnabled ? PX.green : PX.red}`,
-                fontFamily: 'var(--font-pixel)', fontSize: '0.35rem',
-                color: lookupAgent.voiceEnabled ? PX.green : PX.red,
-                display: 'flex', justifyContent: 'space-between', letterSpacing: '0.05em', lineHeight: 1.8,
-              }}>
-                <span>&gt; {lookupAgent.name}</span>
-                <span>{lookupAgent.voiceEnabled ? 'VOICE ON' : 'NO VOICE'}</span>
-              </div>
-            )}
-            {error && <div style={{ marginTop: 8, fontFamily: 'var(--font-pixel)', fontSize: '0.35rem', color: PX.red, textAlign: 'center' }}>! {error}</div>}
-          </div>
+      {/* Equalizer */}
+      {browserState === 'connected' && (
+        <div style={{ padding: '2px 12px' }}>
+          <NokiaEqualizer isSpeaking={conversation.isSpeaking} />
+        </div>
+      )}
 
-          <div style={{ width: '100%', background: PX.black, padding: '1rem', ...pixelBorder(PX.border, 3) }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map((key) => (
-                <button key={key} onClick={() => addDigit(key)} disabled={digits.length >= 8} style={{
-                  fontFamily: 'var(--font-pixel)', fontSize: 'clamp(0.6rem, 3vw, 0.9rem)', padding: 'clamp(8px, 2vw, 14px)',
-                  background: pressedKey === key ? PX.green : digits.length >= 8 ? PX.gray : PX.black,
-                  color: pressedKey === key ? PX.black : digits.length >= 8 ? PX.grayLight : PX.white,
-                  cursor: digits.length >= 8 ? 'not-allowed' : 'pointer',
-                  ...pixelBorder(pressedKey === key ? PX.greenDark : PX.gray, 2),
-                  transition: 'background 0.05s, color 0.05s', lineHeight: 1.5,
-                }}>
-                  {key}
-                  <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.25rem', color: PX.grayLight, marginTop: 2, letterSpacing: '0.1em' }}>
-                    {key === '2' ? 'ABC' : key === '3' ? 'DEF' : key === '4' ? 'GHI' : key === '5' ? 'JKL' : key === '6' ? 'MNO' : key === '7' ? 'PQRS' : key === '8' ? 'TUV' : key === '9' ? 'WXYZ' : key === '0' ? '+' : ''}
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 8 }}>
-              <button onClick={backspace} disabled={digits.length === 0} style={{
-                fontFamily: 'var(--font-pixel)', fontSize: '0.4rem', padding: '10px',
-                background: PX.black, color: digits.length > 0 ? PX.white : PX.grayLight,
-                cursor: digits.length === 0 ? 'not-allowed' : 'pointer', ...pixelBorder(PX.gray, 2), lineHeight: 1.8,
-              }}>&lt;DEL</button>
-              <button onClick={dialFromPad}
-                disabled={digits.length !== 8 || (mode === 'browser' && !lookupAgent?.voiceEnabled)}
-                style={{
-                  fontFamily: 'var(--font-pixel)', fontSize: '0.4rem', padding: '10px',
-                  background: digits.length === 8 && (mode === 'dial' || lookupAgent?.voiceEnabled) ? PX.green : PX.gray,
-                  color: digits.length === 8 && (mode === 'dial' || lookupAgent?.voiceEnabled) ? PX.black : PX.grayLight,
-                  cursor: digits.length === 8 && (mode === 'dial' || lookupAgent?.voiceEnabled) ? 'pointer' : 'not-allowed',
-                  ...pixelBorder(digits.length === 8 && (mode === 'dial' || lookupAgent?.voiceEnabled) ? PX.greenDark : PX.grayLight, 2),
-                  lineHeight: 1.8,
-                }}>{mode === 'browser' ? 'CALL' : 'DIAL'}</button>
-              <button onClick={clearAll} style={{
-                fontFamily: 'var(--font-pixel)', fontSize: '0.4rem', padding: '10px',
-                background: PX.black, color: PX.white, cursor: 'pointer', ...pixelBorder(PX.gray, 2), lineHeight: 1.8,
-              }}>CLEAR</button>
-            </div>
-          </div>
+      {/* Speaking indicator */}
+      {browserState === 'connected' && conversation.isSpeaking && (
+        <div style={{ ...lcdFont, fontSize: '0.2rem', textAlign: 'center', letterSpacing: '0.08em' }}>
+          AGENT SPEAKING...
+        </div>
+      )}
+
+      {/* Remaining time warning */}
+      {browserState === 'connected' && !isUnlimited && remaining <= 15 && (
+        <div style={{ ...lcdFont, fontSize: '0.2rem', textAlign: 'center', letterSpacing: '0.05em' }}
+          className={remaining <= 10 ? 'lcd-blink' : undefined}>
+          {remaining <= 10 ? `! ENDING IN ${remaining}S` : `${remaining}S LEFT`}
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div style={{ ...lcdFont, fontSize: '0.2rem', textAlign: 'center' }} className="lcd-blink">
+          ! {error}
+        </div>
+      )}
+    </div>
+  );
+
+  // ── LCD SOFTKEYS ──
+  const lcdSoftkeys = (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', padding: '2px 8px',
+      borderTop: `1px solid ${LCD.mid}`,
+      ...lcdFont, fontSize: '0.2rem', letterSpacing: '0.05em',
+      color: LCD.mid,
+    }}>
+      {isActive ? (
+        <>
+          <span>MUTE</span>
+          <span>END</span>
+        </>
+      ) : (
+        <>
+          <span>{mode === 'browser' ? 'WEB' : 'PHONE'}</span>
+          <span>MENU</span>
         </>
       )}
+    </div>
+  );
+
+  // ── NOKIA KEYPAD BUTTON ──
+  const nokiaKey = (key: string, label: string, onClick: () => void, disabled = false) => (
+    <button
+      key={key}
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        fontFamily: 'var(--font-pixel)',
+        fontSize: 'clamp(0.5rem, 2.5vw, 0.75rem)',
+        padding: 'clamp(6px, 1.5vw, 10px) 0',
+        background: pressedKey === key ? NOKIA_KEY_PRESSED : NOKIA_KEY_BG,
+        color: disabled ? '#555' : '#DDD',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        border: `1px solid ${NOKIA_BODY_EDGE}`,
+        borderRadius: 4,
+        boxShadow: pressedKey === key ? 'inset 0 1px 3px rgba(0,0,0,0.4)' : '0 2px 0 #1A1D1E, inset 0 1px 0 rgba(255,255,255,0.06)',
+        transition: 'background 0.05s',
+        lineHeight: 1.3,
+        textAlign: 'center',
+      }}
+    >
+      {key}
+      {label && <div style={{ fontSize: '0.2rem', color: '#888', marginTop: 1, letterSpacing: '0.08em' }}>{label}</div>}
+    </button>
+  );
+
+  // ── FULL NOKIA PHONE ──
+  const phonePanel = (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: 380, margin: '0 auto', width: '100%' }}>
+      {/* Nokia body */}
+      <div style={{
+        width: '100%',
+        background: `linear-gradient(180deg, ${NOKIA_BODY_LIGHT} 0%, ${NOKIA_BODY} 15%, ${NOKIA_BODY} 85%, ${NOKIA_BODY_EDGE} 100%)`,
+        borderRadius: 20,
+        padding: 'clamp(10px, 2vw, 16px)',
+        boxShadow: `0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)`,
+        border: `2px solid ${NOKIA_BODY_EDGE}`,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'clamp(6px, 1.5vw, 10px)',
+      }}>
+        {/* Brand */}
+        <div style={{
+          textAlign: 'center',
+          fontFamily: 'var(--font-pixel)',
+          fontSize: '0.25rem',
+          color: '#666',
+          letterSpacing: '0.2em',
+          padding: '2px 0',
+        }}>
+          PHONEBOOK
+        </div>
+
+        {/* LCD Screen */}
+        <div style={{
+          background: LCD.bg,
+          borderRadius: 6,
+          border: `3px solid ${NOKIA_BODY_EDGE}`,
+          boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.2)',
+          overflow: 'hidden',
+          minHeight: 'clamp(120px, 25vw, 180px)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          {lcdStatusBar}
+          {isActive && selectedAgent ? lcdActiveCall : lcdIdle}
+          {lcdSoftkeys}
+        </div>
+
+        {/* Navigation button (circular) */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, padding: '2px 0' }}>
+          {/* Left softkey */}
+          <button onClick={() => {
+            if (isActive) { /* mute - future */ }
+            else setMode(mode === 'browser' ? 'dial' : 'browser');
+          }} style={{
+            fontFamily: 'var(--font-pixel)', fontSize: '0.25rem', padding: '4px 12px',
+            background: NOKIA_KEY_BG, color: '#AAA', border: `1px solid ${NOKIA_BODY_EDGE}`,
+            borderRadius: 4, cursor: 'pointer',
+            boxShadow: '0 2px 0 #1A1D1E',
+          }}>
+            {isActive ? 'MUTE' : mode === 'browser' ? 'WEB' : 'PHONE'}
+          </button>
+
+          {/* D-pad / center */}
+          <div style={{
+            width: 44, height: 44,
+            borderRadius: '50%',
+            background: `radial-gradient(circle, ${NOKIA_KEY_PRESSED} 30%, ${NOKIA_KEY_BG} 70%)`,
+            border: `2px solid ${NOKIA_BODY_EDGE}`,
+            boxShadow: '0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)',
+          }} />
+
+          {/* Right softkey */}
+          <button onClick={() => {
+            if (isActive) endBrowserCall();
+            else clearAll();
+          }} style={{
+            fontFamily: 'var(--font-pixel)', fontSize: '0.25rem', padding: '4px 12px',
+            background: NOKIA_KEY_BG, color: '#AAA', border: `1px solid ${NOKIA_BODY_EDGE}`,
+            borderRadius: 4, cursor: 'pointer',
+            boxShadow: '0 2px 0 #1A1D1E',
+          }}>
+            {isActive ? 'END' : 'CLEAR'}
+          </button>
+        </div>
+
+        {/* Action buttons: CALL / HANGUP */}
+        <div style={{ display: 'flex', gap: 8, padding: '0 8px' }}>
+          <button
+            onClick={() => {
+              if (isActive) return;
+              if (digits.length === 8 && lookupAgent) dialFromPad();
+            }}
+            disabled={isActive || digits.length !== 8 || (mode === 'browser' && !lookupAgent?.voiceEnabled)}
+            style={{
+              flex: 1, fontFamily: 'var(--font-pixel)', fontSize: '0.35rem', padding: '8px',
+              background: !isActive && digits.length === 8 && (mode === 'dial' || lookupAgent?.voiceEnabled) ? '#2D8B46' : '#2A3A2A',
+              color: !isActive && digits.length === 8 ? '#DDD' : '#555',
+              cursor: !isActive && digits.length === 8 && (mode === 'dial' || lookupAgent?.voiceEnabled) ? 'pointer' : 'not-allowed',
+              border: `1px solid ${NOKIA_BODY_EDGE}`, borderRadius: 6,
+              boxShadow: '0 2px 0 #1A1D1E',
+              lineHeight: 1.8,
+            }}
+          >
+            CALL
+          </button>
+          <button
+            onClick={() => { if (isActive) endBrowserCall(); else clearAll(); }}
+            style={{
+              flex: 1, fontFamily: 'var(--font-pixel)', fontSize: '0.35rem', padding: '8px',
+              background: isActive ? '#8B2D2D' : '#3A2A2A',
+              color: isActive ? '#FFF' : '#888',
+              cursor: 'pointer',
+              border: `1px solid ${NOKIA_BODY_EDGE}`, borderRadius: 6,
+              boxShadow: '0 2px 0 #1A1D1E',
+              lineHeight: 1.8,
+            }}
+          >
+            {isActive ? 'HANG UP' : 'CLEAR'}
+          </button>
+        </div>
+
+        {/* Keypad */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 'clamp(3px, 0.8vw, 6px)', padding: '0 8px',
+        }}>
+          {[
+            { k: '1', l: '' }, { k: '2', l: 'ABC' }, { k: '3', l: 'DEF' },
+            { k: '4', l: 'GHI' }, { k: '5', l: 'JKL' }, { k: '6', l: 'MNO' },
+            { k: '7', l: 'PQRS' }, { k: '8', l: 'TUV' }, { k: '9', l: 'WXYZ' },
+            { k: '*', l: '' }, { k: '0', l: '+' }, { k: '#', l: '' },
+          ].map(({ k, l }) => nokiaKey(k, l, () => addDigit(k), isActive || digits.length >= 8))}
+        </div>
+
+        {/* Bottom action row */}
+        <div style={{ display: 'flex', gap: 6, padding: '0 8px 4px' }}>
+          <button onClick={backspace} disabled={digits.length === 0 || isActive} style={{
+            flex: 1, fontFamily: 'var(--font-pixel)', fontSize: '0.28rem', padding: '6px',
+            background: NOKIA_KEY_BG, color: digits.length > 0 && !isActive ? '#DDD' : '#555',
+            cursor: digits.length > 0 && !isActive ? 'pointer' : 'not-allowed',
+            border: `1px solid ${NOKIA_BODY_EDGE}`, borderRadius: 4,
+            boxShadow: '0 2px 0 #1A1D1E', lineHeight: 1.8,
+          }}>&lt;DEL</button>
+        </div>
+
+        {/* Nokia bottom logo area */}
+        <div style={{
+          textAlign: 'center',
+          fontFamily: 'var(--font-pixel)',
+          fontSize: '0.18rem',
+          color: '#444',
+          letterSpacing: '0.15em',
+          padding: '4px 0 2px',
+        }}>
+          0x01 WORLD
+        </div>
+      </div>
     </div>
   );
 
   // ── PANEL: GUIDE (right / mobile tab 3) ──
   const guidePanel = (
     <div style={{ flex: '0 0 280px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, padding: '0.5rem 0' }}>
-      {/* Call guide box */}
       <div style={{ background: PX.black, padding: '1rem', ...pixelBorder(PX.green, 2) }}>
         <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.35rem', color: PX.green, letterSpacing: '0.1em', marginBottom: 10 }}>
           HOW TO CALL
@@ -541,7 +886,6 @@ export default function PhoneClient() {
         </div>
       </div>
 
-      {/* Mode info */}
       <div style={{ background: 'rgba(0,0,0,0.04)', padding: '0.75rem', ...pixelBorder(PX.grayLight, 2), fontFamily: 'var(--font-pixel)', fontSize: '0.25rem', color: PX.gray, lineHeight: 2.2 }}>
         {mode === 'browser' ? (
           <>
@@ -560,7 +904,6 @@ export default function PhoneClient() {
         )}
       </div>
 
-      {/* Central number copy */}
       <button onClick={() => { navigator.clipboard?.writeText(TWILIO_NUMBER).catch(() => {}); }} style={{
         fontFamily: 'var(--font-pixel)', fontSize: '0.28rem', padding: '8px',
         background: PX.black, color: PX.blue, cursor: 'pointer',
@@ -605,9 +948,9 @@ export default function PhoneClient() {
 
       {/* ── DESKTOP LAYOUT (3 columns) ── */}
       <div className="phone-desktop" style={{ flex: 1, display: 'flex', gap: '1rem', padding: '1rem', overflow: 'hidden' }}>
-        {!isActive && agentsPanel(true)}
+        {agentsPanel(true)}
         {phonePanel}
-        {!isActive && guidePanel}
+        {guidePanel}
       </div>
 
       {/* ── MOBILE LAYOUT (tab-based) ── */}
@@ -674,8 +1017,8 @@ export default function PhoneClient() {
         @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
         @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 0.9; } 50% { transform: scale(1.1); opacity: 1; } }
         @keyframes ring-shake { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-12deg); } 75% { transform: rotate(12deg); } }
+        .lcd-blink { animation: blink 1s step-end infinite; }
 
-        /* Desktop: show 3-col, hide mobile */
         .phone-desktop { display: flex !important; }
         .phone-mobile { display: none !important; }
         .phone-mobile-nav { display: none !important; }

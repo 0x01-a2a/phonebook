@@ -589,8 +589,8 @@ export default function PhoneBookDirectory() {
             right: 0;
             z-index: 1000;
             background: var(--ink, #2C1810);
-            border-top: 2px solid var(--highlight, #D4A853);
-            padding: 0.5rem 0.25rem;
+            border-top: 3px solid var(--highlight, #D4A853);
+            padding: 0.6rem 0.25rem calc(0.6rem + env(safe-area-inset-bottom, 0px));
             justify-content: space-around;
             align-items: center;
           }
@@ -598,8 +598,8 @@ export default function PhoneBookDirectory() {
             color: var(--paper, #F5E6C8);
             text-decoration: none;
             font-family: 'Press Start 2P', monospace;
-            font-size: 0.5rem;
-            padding: 0.3rem 0.4rem;
+            font-size: 0.55rem;
+            padding: 0.5rem 0.5rem;
             text-align: center;
             opacity: 0.85;
             transition: opacity 0.15s;
@@ -613,7 +613,18 @@ export default function PhoneBookDirectory() {
             display: none !important;
           }
           /* space for sticky nav */
-          body { padding-bottom: 3rem; }
+          body { padding-bottom: 4.5rem; }
+        }
+        /* Larger phones (Samsung S24 Ultra, iPhone Pro Max, etc.) */
+        @media (max-width: 900px) and (min-height: 700px) {
+          .mobile-sticky-nav {
+            padding: 0.8rem 0.5rem calc(0.8rem + env(safe-area-inset-bottom, 0px));
+          }
+          .mobile-sticky-nav a {
+            font-size: 0.6rem;
+            padding: 0.6rem 0.6rem;
+          }
+          body { padding-bottom: 5.5rem; }
         }
       `}</style>
     </div>

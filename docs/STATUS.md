@@ -29,9 +29,14 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | **Live Radio `/radio`** | Frontend: topic tabs, player, waveform, SSE live updates | ✅ |
 | **Broadcast Scheduler** | Cron-based periodic broadcasts per agent | ✅ |
 | **Voice IVR (Twilio)** | Central number → DTMF extension → ElevenLabs Conversational Agent | ✅ |
-| **Voice Tool Calling** | Firecrawl Search + Scrape as ElevenLabs webhook tools during live calls | ✅ |
+| **Voice Tool Calling** | Firecrawl Search (5 results, cały web) + Scrape as ElevenLabs webhook tools during live calls | ✅ |
+| **Voice Tools Auto-Register** | Firecrawl tools (search_web + scrape_url) auto-registered on ElevenLabs agents via `toolsConfigured` flag | ✅ |
 | **Browser Voice Calling** | `@elevenlabs/react` useConversation() — call agents from browser, no phone needed | ✅ |
-| **Phone UI** | 3-panel responsive: agent directory (left) + dial pad (center) + call guide (right), mobile bottom nav tabs | ✅ |
+| **Browser Call Ringing** | US ring tone (440+480 Hz, Web Audio API) przed połączeniem — realistyczne doświadczenie | ✅ |
+| **Browser Call Limit** | 60s max z widocznym timerem, auto-disconnect, ostrzeżenie w ostatnich 10s | ✅ |
+| **Phone UI (Nokia 3310)** | Nokia 3310 pixel art obudowa z LCD ekranem, equalizer, softkeys, D-pad — Nokia widoczna zawsze (idle + call) | ✅ |
+| **Voice Rate Limiting** | Owner (claimToken) = bez limitu; non-owner = 60s, 1 call / 4h per IP (Redis) | ✅ |
+| **llms.txt + split docs** | llms.txt, llms-full.txt, 5 split doc files (register/voice/radio/communication/api) | ✅ |
 | **Radio LATEST tab** | Default "LATEST" tab shows all recent broadcasts across topics | ✅ |
 | **API Proxy (Next.js)** | Rewrites for /api/broadcasts, /api/voice, /api/audio — no CORS issues | ✅ |
 
@@ -89,9 +94,9 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 
 | Feature | Plik | Status |
 |---------|------|--------|
-| `pubkeyHex` w schemacie agentów | schema.ts | ✅ (wymaga db:push) |
-| `POST /api/sdk/register` — Ed25519 auto-claim | routes/sdk.ts | ✅ (wymaga deploy) |
-| `GET /api/sdk/me` — profil własnego agenta | routes/sdk.ts | ✅ (wymaga deploy) |
+| `pubkeyHex` w schemacie agentów | schema.ts | ✅ deployed |
+| `POST /api/sdk/register` — Ed25519 auto-claim | routes/sdk.ts | ✅ deployed |
+| `GET /api/sdk/me` — profil własnego agenta | routes/sdk.ts | ✅ deployed |
 | `@phonebook/node-sdk` — SDK dla ZeroClaw/0x01 | packages/phonebook-node-sdk/ | ✅ lokalnie |
 
 ---
@@ -151,8 +156,8 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 ### SDK (ZeroClaw / 0x01 integration)
 | Endpoint | Auth | Status |
 |----------|------|--------|
-| `POST /api/sdk/register` | Ed25519 signature | ✅ (wymaga deploy) |
-| `GET /api/sdk/me` | ✅ X-Agent-Id + Secret | ✅ (wymaga deploy) |
+| `POST /api/sdk/register` | Ed25519 signature | ✅ |
+| `GET /api/sdk/me` | ✅ X-Agent-Id + Secret | ✅ |
 
 ### Komunikacja
 | Endpoint | Auth | Status |
@@ -222,10 +227,15 @@ phonebook/
 │   └── phonebook-node-sdk/ # @phonebook/node-sdk — ZeroClaw/0x01 Ed25519 SDK
 ├── docs/
 │   ├── STATUS.md
-│   ├── PLAN.md
+│   ├── plan.md
 │   ├── VOICE-RADIO.md
 │   ├── PHONE.md
-│   └── SECURITY-AUDIT-BACKEND.md
+│   ├── SECURITY-AUDIT-BACKEND.md
+│   ├── PROJECT-STATUS-REVIEW.md
+│   ├── phonebook-connect.md
+│   └── hack/
+│       ├── ELEVENHACKS-SUBMISSION.md
+│       └── hack1.md
 ├── .env                  # DEV — localhost
 ├── .env.production       # PROD — Hetzner (nie w git)
 └── ecosystem.config.cjs  # PM2 config
@@ -281,3 +291,10 @@ curl https://api.phonebook.0x01.world/health
 | 2026-03-20 | Logo — ukryte na mobile (<640px), zmniejszone 72→56px | ✅ |
 | 2026-03-20 | Phone UI 3-panel redesign — desktop: agents+phone+guide, mobile: bottom nav tabs | ✅ |
 | 2026-03-20 | Deploy to Hetzner — git pull + pnpm install + db:push + pm2 delete/start | ✅ connect endpoint + indexes + new UI live |
+| 2026-03-20 | Voice search fix — usunięty filtr `tbs: 'qdr:d'` (ograniczał do 24h), limit 3→5 | ✅ deployed |
+| 2026-03-20 | Auto-rejestracja Firecrawl tools na ElevenLabs agentach (search_web + scrape_url) | ✅ deployed |
+| 2026-03-20 | Browser call ringing tone (440+480 Hz US ring, Web Audio API) + 60s call limit z timerem | ✅ |
+| 2026-03-20 | llms.txt + llms-full.txt + 5 split doc files (register/voice/radio/communication/api) | ✅ |
+| 2026-03-20 | Usunięcie brandów third-party (ElevenLabs/Firecrawl/Twilio) z głównej strony | ✅ |
+| 2026-03-20 | Phone UI redesign → Nokia 3310 (LCD ekran, equalizer, Nokia keypad, softkeys) | ✅ |
+| 2026-03-20 | Voice rate limiting — owner unlimited, non-owner 60s / 1 call per 4h (Redis + claimToken) | ✅ |
