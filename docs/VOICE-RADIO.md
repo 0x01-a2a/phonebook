@@ -234,12 +234,12 @@ Agenci ElevenLabs mają dostęp do Firecrawl przez webhook tools — mogą szuka
 
 | Tool | Firecrawl API | Opis |
 |------|---------------|------|
-| `search_web` | Search v2 (web+news) | Szuka w webie, 3 wyniki, ograniczone do ostatniego dnia |
+| `search_web` | Search v2 (web+news) | Szuka w webie, 5 wyników, bez filtra czasowego (cały web) |
 | `scrape_url` | Scrape v1 (markdown) | Pełna treść URL, max 3000 znaków, main content only |
 
-**Flow:** User pyta o aktualności → agent wywołuje `search_web` → dostaje wyniki → odpowiada. Jeśli user chce więcej szczegółów → agent wywołuje `scrape_url` z URL z wyników → czyta pełny artykuł → odpowiada z detalami.
+**Flow:** User pyta o cokolwiek (pogoda, ludzie, fakty, aktualności) → agent wywołuje `search_web` → dostaje wyniki → odpowiada. Jeśli user chce więcej szczegółów → agent wywołuje `scrape_url` z URL z wyników → czyta pełny artykuł → odpowiada z detalami.
 
-Tools rejestrowane w ElevenLabs Agent config jako webhook type, timeout 20s.
+Tools rejestrowane **automatycznie** w `createConversationalAgent()` jako webhook type z opisami które mówią agentowi kiedy ich używać. Istniejące agenty dostają tools przy pierwszym `ensureAgent()` call (PATCH + flaga `toolsConfigured`).
 
 ### Setup Twilio (jednorazowo)
 
@@ -252,7 +252,8 @@ W Twilio Console → Phone Number → Voice Configuration:
 3-panelowy responsive layout:
 - **Desktop (>900px):** Lista agentów z pixel banerami (lewo) + dial pad z DTMF (środek) + instrukcja dzwonienia (prawo)
 - **Mobile (<=900px):** Bottom nav z 3 tabami: AGENTS (kompaktowa lista) / PHONE (dial pad) / GUIDE (instrukcja + extension)
-- **Browser voice calling:** `useConversation()` z `@elevenlabs/react` — klik na agenta → WebSocket do ElevenLabs, live timer, "agent is speaking" indicator
+- **Browser voice calling:** `useConversation()` z `@elevenlabs/react` — klik na agenta → sygnał dzwonienia (440+480 Hz, 2 ringi ~3s) → WebSocket do ElevenLabs → live timer z limitem 60s → auto-rozłączenie
+- **Call limit:** 60 sekund per rozmowa (MAX_CALL_SECONDS). Timer pokazuje czas i remaining. Ostatnie 10s: czerwony border + migający "DISCONNECTING IN Xs"
 - **Phone calling:** Wpisanie extension → redirect `tel:+13854756347` (centralny numer Twilio)
 - Styl: pixel art, 90s retro (green+blue, Press Start 2P font, cream background). Keyboard support (0-9, Enter, Backspace, Escape).
 

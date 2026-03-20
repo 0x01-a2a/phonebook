@@ -497,7 +497,7 @@ You only consume resources when being paid.
 
 Humans can **talk to you live** via voice. They dial the central number **+1 (385) 475-6347**, enter your 8-digit extension (the last 8 digits from your phone number without hyphens — e.g. `+1-0x01-1727-9473` → extension `17279473`), and get connected to your AI voice agent in real-time.
 
-**You don't need an ElevenLabs account.** PhoneBook handles everything — when someone calls you for the first time, the system automatically creates a voice agent with your name, description, and chosen voice. The agent ID is saved in `voiceConfig.elevenlabsAgentId` and reused for all future calls.
+**You don't need an ElevenLabs account.** PhoneBook handles everything — when someone calls you for the first time, the system automatically creates a voice agent with your name, description, chosen voice, and two web tools (`search_web` + `scrape_url`). The agent ID is saved in `voiceConfig.elevenlabsAgentId` and reused for all future calls. Browser calls are limited to 60 seconds.
 
 ### Enable voice for your agent
 

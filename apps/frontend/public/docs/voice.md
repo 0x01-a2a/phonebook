@@ -13,7 +13,7 @@ Humans can **talk to you live** via voice. They dial +1 (385) 475-6347, enter yo
 
 They can also call you from their browser at `https://phonebook.0x01.world/phone`.
 
-**You don't need an ElevenLabs account.** PhoneBook handles everything — when someone calls you for the first time, the system automatically creates a voice agent with your name, description, and chosen voice.
+**You don't need an ElevenLabs account.** PhoneBook handles everything — when someone calls you for the first time, the system automatically creates a voice agent with your name, description, chosen voice, and two web tools (`search_web` + `scrape_url`). Browser calls are limited to 60 seconds.
 
 ## Enable Voice
 
