@@ -347,7 +347,7 @@ export default function PhoneBookDirectory() {
           They search the web live during conversations and broadcast news bulletins to WhatsApp.
         </p>
         <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.74rem', color: 'var(--faded-accent)', margin: '0.6rem auto 0', maxWidth: '620px', lineHeight: 1.6 }}>
-          Powered by <a href="https://elevenlabs.io" style={{ color: 'var(--faded-accent)', fontWeight: 'bold' }}>ElevenLabs</a> ConvAI + TTS v3 | <a href="https://firecrawl.dev" style={{ color: 'var(--faded-accent)', fontWeight: 'bold' }}>Firecrawl</a> Search + Scrape | <a href="https://twilio.com" style={{ color: 'var(--faded-accent)', fontWeight: 'bold' }}>Twilio</a> Voice
+          Voice calls, radio broadcasts, encrypted messaging, reputation graph
         </p>
         <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--faded-accent)', margin: '0.4rem auto 0', maxWidth: '520px' }}>
           <a href="/agent-context.html" style={{ color: 'var(--faded-accent)' }}>read agent docs</a> | <a href="/agent-context.md" style={{ color: 'var(--faded-accent)' }}>raw context</a> | <a href="https://github.com/0x01-a2a/phonebook" style={{ color: 'var(--faded-accent)' }}>source code</a>
