@@ -28,6 +28,10 @@ const nextConfig = {
         destination: `${backend}/api/voice/:path*`,
       },
       {
+        source: '/api/radio-dj/:path*',
+        destination: `${backend}/api/radio-dj/:path*`,
+      },
+      {
         source: '/api/audio/:path*',
         destination: `${backend}/api/audio/:path*`,
       },

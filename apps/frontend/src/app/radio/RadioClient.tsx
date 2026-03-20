@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import Waveform from './Waveform';
+import WinampEqualizer from './WinampEqualizer';
 
 interface Topic {
   id: string;
@@ -26,9 +26,18 @@ interface Broadcast {
   createdAt: string;
 }
 
+interface DjClip {
+  type: 'intro' | 'filler' | 'signoff';
+  variant: number;
+  audioUrl: string;
+  script: string;
+}
+
+type RadioState = 'loading' | 'ready' | 'dj_intro' | 'broadcast' | 'dj_filler' | 'idle';
+
 const API = '';
 
-// Pixel art color palette (from logo)
+// Pixel art color palette
 const PX = {
   bg: '#F5E6C8',
   green: '#00CC44',
@@ -68,19 +77,24 @@ export default function RadioClient() {
   const [duration, setDuration] = useState(0);
   const [connected, setConnected] = useState(false);
 
+  // DJ state
+  const [radioState, setRadioState] = useState<RadioState>('loading');
+  const [djClips, setDjClips] = useState<DjClip[]>([]);
+  const [broadcastIndex, setBroadcastIndex] = useState(0);
+  const [currentDjClip, setCurrentDjClip] = useState<DjClip | null>(null);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const esRef = useRef<EventSource | null>(null);
+  const fillerIndexRef = useRef(0);
 
   // Load topics
   useEffect(() => {
     fetch(`${API}/api/broadcasts/topics`)
       .then((r) => r.json())
-      .then((data: Topic[]) => {
-        setTopics(data);
-      })
+      .then((data: Topic[]) => setTopics(data))
       .catch(console.error);
   }, []);
 
@@ -95,6 +109,20 @@ export default function RadioClient() {
       .then((data: Broadcast[]) => setBroadcasts(data))
       .catch(console.error);
   }, [currentTopic]);
+
+  // Load DJ clips
+  useEffect(() => {
+    fetch(`${API}/api/radio-dj/clips`)
+      .then((r) => r.json())
+      .then((data: DjClip[]) => {
+        setDjClips(Array.isArray(data) ? data : []);
+        setRadioState('ready');
+      })
+      .catch(() => {
+        // DJ clips are optional — continue without them
+        setRadioState('ready');
+      });
+  }, []);
 
   // SSE for live updates
   const connectSSE = useCallback(() => {
@@ -115,16 +143,20 @@ export default function RadioClient() {
             .then((r) => r.json())
             .then((list: Broadcast[]) => {
               setBroadcasts(list);
-              if (!isPlaying && list.length > 0 && list[0].audioUrlMp3) {
-                playBroadcast(list[0]);
-              }
+              // If idle or filler, jump to new broadcast
+              setRadioState((prev) => {
+                if ((prev === 'idle' || prev === 'dj_filler') && list.length > 0 && list[0].audioUrlMp3) {
+                  return 'broadcast';
+                }
+                return prev;
+              });
             })
             .catch(console.error);
         }
       } catch {}
     };
     es.onerror = () => { es.close(); setConnected(false); setTimeout(connectSSE, 5000); };
-  }, [currentTopic, isPlaying]);
+  }, [currentTopic]);
 
   useEffect(() => { connectSSE(); return () => { esRef.current?.close(); }; }, [connectSSE]);
 
@@ -134,7 +166,7 @@ export default function RadioClient() {
     if (!audio) return;
     const ctx = new AudioContext();
     const analyser = ctx.createAnalyser();
-    analyser.fftSize = 128;
+    analyser.fftSize = 256;
     const source = ctx.createMediaElementSource(audio);
     source.connect(analyser);
     analyser.connect(ctx.destination);
@@ -143,33 +175,64 @@ export default function RadioClient() {
     sourceRef.current = source;
   }, []);
 
-  const playBroadcast = useCallback((b: Broadcast) => {
-    const raw = b.audioUrlMp3 || b.audioUrl;
-    if (!raw) return;
-    // Convert absolute backend URLs to relative paths for proxy
-    const url = raw.replace(/^https?:\/\/[^/]+/, '');
+  const playAudioUrl = useCallback((url: string) => {
     const audio = audioRef.current;
     if (!audio) return;
     ensureAudioContext();
     if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
-    audio.src = url;
+    // Convert absolute backend URLs to relative paths for proxy
+    const relativeUrl = url.replace(/^https?:\/\/[^/]+/, '');
+    audio.src = relativeUrl;
     audio.play().catch(console.error);
-    setNowPlaying(b);
     setIsPlaying(true);
   }, [ensureAudioContext]);
+
+  const playBroadcast = useCallback((b: Broadcast, index?: number) => {
+    const raw = b.audioUrlMp3 || b.audioUrl;
+    if (!raw) return;
+    setNowPlaying(b);
+    setCurrentDjClip(null);
+    setRadioState('broadcast');
+    if (index !== undefined) setBroadcastIndex(index);
+    playAudioUrl(raw);
+  }, [playAudioUrl]);
+
+  const playDjClip = useCallback((clip: DjClip, state: 'dj_intro' | 'dj_filler') => {
+    setCurrentDjClip(clip);
+    setNowPlaying(null);
+    setRadioState(state);
+    playAudioUrl(clip.audioUrl);
+  }, [playAudioUrl]);
+
+  // TUNE IN — starts the radio flow
+  const tuneIn = useCallback(() => {
+    const introClip = djClips.find((c) => c.type === 'intro');
+    if (introClip) {
+      playDjClip(introClip, 'dj_intro');
+    } else if (broadcasts.length > 0 && broadcasts[0].audioUrlMp3) {
+      // No intro clip available, go straight to broadcasts
+      setBroadcastIndex(0);
+      playBroadcast(broadcasts[0], 0);
+    } else {
+      setRadioState('idle');
+    }
+  }, [djClips, broadcasts, playDjClip, playBroadcast]);
 
   const togglePlayPause = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (isPlaying) { audio.pause(); setIsPlaying(false); }
-    else if (nowPlaying) {
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else if (nowPlaying || currentDjClip) {
       ensureAudioContext();
       if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
       audio.play().catch(console.error);
       setIsPlaying(true);
-    } else if (broadcasts.length > 0) { playBroadcast(broadcasts[0]); }
-  }, [isPlaying, nowPlaying, broadcasts, playBroadcast, ensureAudioContext]);
+    }
+  }, [isPlaying, nowPlaying, currentDjClip, ensureAudioContext]);
 
+  // Handle audio events — state machine transitions
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -177,13 +240,53 @@ export default function RadioClient() {
     const onDur = () => setDuration(audio.duration || 0);
     const onEnded = () => {
       setIsPlaying(false);
-      if (nowPlaying) {
-        const idx = broadcasts.findIndex((b) => b.id === nowPlaying.id);
-        if (idx >= 0 && idx < broadcasts.length - 1 && broadcasts[idx + 1].audioUrlMp3) {
-          playBroadcast(broadcasts[idx + 1]);
+
+      // State machine transitions
+      if (radioState === 'dj_intro') {
+        // Intro ended → play first broadcast or filler
+        const playable = broadcasts.filter((b) => b.audioUrlMp3);
+        if (playable.length > 0) {
+          setBroadcastIndex(0);
+          playBroadcast(playable[0], 0);
+        } else {
+          // No broadcasts, try filler
+          const filler = djClips.find((c) => c.type === 'filler');
+          if (filler) {
+            playDjClip(filler, 'dj_filler');
+          } else {
+            setRadioState('idle');
+          }
+        }
+      } else if (radioState === 'broadcast') {
+        // Current broadcast ended → next broadcast or filler
+        const playable = broadcasts.filter((b) => b.audioUrlMp3);
+        const nextIdx = broadcastIndex + 1;
+        if (nextIdx < playable.length) {
+          setBroadcastIndex(nextIdx);
+          playBroadcast(playable[nextIdx], nextIdx);
+        } else {
+          // All broadcasts played → filler
+          const fillers = djClips.filter((c) => c.type === 'filler');
+          if (fillers.length > 0) {
+            const filler = fillers[fillerIndexRef.current % fillers.length];
+            fillerIndexRef.current++;
+            playDjClip(filler, 'dj_filler');
+          } else {
+            setRadioState('idle');
+          }
+        }
+      } else if (radioState === 'dj_filler') {
+        // Filler ended → loop broadcasts from start or idle
+        const playable = broadcasts.filter((b) => b.audioUrlMp3);
+        if (playable.length > 0) {
+          setBroadcastIndex(0);
+          playBroadcast(playable[0], 0);
+        } else {
+          setRadioState('idle');
         }
       }
     };
+
     audio.addEventListener('timeupdate', onTime);
     audio.addEventListener('durationchange', onDur);
     audio.addEventListener('ended', onEnded);
@@ -192,7 +295,7 @@ export default function RadioClient() {
       audio.removeEventListener('durationchange', onDur);
       audio.removeEventListener('ended', onEnded);
     };
-  }, [nowPlaying, broadcasts, playBroadcast]);
+  }, [radioState, nowPlaying, broadcasts, broadcastIndex, djClips, playBroadcast, playDjClip]);
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const t = parseFloat(e.target.value);
@@ -201,6 +304,8 @@ export default function RadioClient() {
   };
 
   const currentTopicData = topics.find((t) => t.slug === currentTopic);
+  const showTuneIn = radioState === 'ready' || radioState === 'loading';
+  const isDjPlaying = radioState === 'dj_intro' || radioState === 'dj_filler';
 
   return (
     <div style={{
@@ -212,13 +317,12 @@ export default function RadioClient() {
     }}>
       <audio ref={audioRef} preload="auto" crossOrigin="anonymous" />
 
-      {/* ── HEADER ── */}
+      {/* HEADER */}
       <header style={{
         textAlign: 'center',
         padding: '1.5rem 1rem 1rem',
         borderBottom: `4px solid ${PX.black}`,
       }}>
-        {/* Pixel separator line */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
           <div style={{ height: 3, width: 80, background: PX.green }} />
           <div style={{ height: 3, width: 80, background: PX.blue }} />
@@ -254,7 +358,7 @@ export default function RadioClient() {
         </div>
       </header>
 
-      {/* ── NAV ── */}
+      {/* NAV */}
       <div style={{
         display: 'flex',
         gap: '1rem',
@@ -273,13 +377,12 @@ export default function RadioClient() {
         <span style={{ flex: 1 }} />
         <span style={{
           color: connected ? PX.green : PX.red,
-          animation: connected ? 'none' : undefined,
         }}>
           [{connected ? 'LIVE' : 'OFFLINE'}]
         </span>
       </div>
 
-      {/* ── TOPIC TABS ── */}
+      {/* TOPIC TABS */}
       <div style={{
         display: 'flex',
         gap: '0.35rem',
@@ -330,7 +433,7 @@ export default function RadioClient() {
         })}
       </div>
 
-      {/* ── NOW PLAYING ── */}
+      {/* NOW PLAYING */}
       <div style={{
         margin: '1rem',
         padding: '1rem',
@@ -349,9 +452,76 @@ export default function RadioClient() {
           NOW PLAYING {currentTopicData ? `// ${currentTopicData.name.toUpperCase()}` : ''}
         </div>
 
-        {nowPlaying ? (
+        {showTuneIn ? (
+          /* TUNE IN splash */
+          <div style={{
+            textAlign: 'center',
+            padding: '2rem 0',
+          }}>
+            <div style={{
+              fontFamily: 'var(--font-pixel)',
+              fontSize: '0.55rem',
+              color: PX.green,
+              marginBottom: 16,
+              lineHeight: 2,
+              letterSpacing: '0.1em',
+            }}>
+              TUNE IN TO RADIO PHONEBOOK
+            </div>
+            <button
+              onClick={tuneIn}
+              disabled={radioState === 'loading'}
+              style={{
+                fontFamily: 'var(--font-pixel)',
+                fontSize: '0.7rem',
+                padding: '12px 32px',
+                background: PX.green,
+                color: PX.black,
+                cursor: radioState === 'loading' ? 'wait' : 'pointer',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                ...pixelBorder(PX.greenDark, 3),
+                opacity: radioState === 'loading' ? 0.5 : 1,
+              }}
+            >
+              {radioState === 'loading' ? 'LOADING...' : '> PLAY'}
+            </button>
+            <div style={{
+              fontFamily: 'var(--font-pixel)',
+              fontSize: '0.35rem',
+              color: PX.grayLight,
+              marginTop: 12,
+              lineHeight: 2,
+            }}>
+              {broadcasts.length} BROADCASTS READY
+            </div>
+          </div>
+        ) : radioState === 'idle' ? (
+          /* Idle — waiting for new broadcasts */
+          <div style={{
+            fontFamily: 'var(--font-pixel)',
+            fontSize: '0.4rem',
+            color: PX.grayLight,
+            textAlign: 'center',
+            padding: '1.5rem 0',
+            lineHeight: 2,
+          }}>
+            &gt; WAITING FOR NEW BROADCASTS... STAY TUNED
+          </div>
+        ) : (
+          /* Playing — DJ or broadcast */
           <div>
-            {/* Agent name + duration */}
+            {/* Winamp Equalizer */}
+            <div style={{ marginBottom: 12 }}>
+              <WinampEqualizer
+                analyser={analyserRef.current}
+                isPlaying={isPlaying}
+                width={400}
+                height={120}
+              />
+            </div>
+
+            {/* Agent/DJ name + duration */}
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -361,9 +531,9 @@ export default function RadioClient() {
               <span style={{
                 fontFamily: 'var(--font-pixel)',
                 fontSize: '0.6rem',
-                color: PX.green,
+                color: isDjPlaying ? PX.blue : PX.green,
               }}>
-                {nowPlaying.agentName}
+                {isDjPlaying ? 'RADIO DJ' : nowPlaying?.agentName}
               </span>
               <span style={{
                 fontFamily: 'var(--font-pixel)',
@@ -374,7 +544,7 @@ export default function RadioClient() {
               </span>
             </div>
 
-            {/* Title */}
+            {/* Title / script */}
             <div style={{
               fontFamily: 'var(--font-pixel)',
               fontSize: '0.4rem',
@@ -385,7 +555,7 @@ export default function RadioClient() {
               whiteSpace: 'nowrap',
               lineHeight: 1.8,
             }}>
-              &gt; {nowPlaying.title}
+              &gt; {isDjPlaying ? currentDjClip?.script : nowPlaying?.title}
             </div>
 
             {/* Controls */}
@@ -427,27 +597,11 @@ export default function RadioClient() {
                 {duration > 0 ? formatDuration(duration) : '--:--'}
               </span>
             </div>
-
-            {/* Waveform */}
-            <Waveform analyser={analyserRef.current} isPlaying={isPlaying} height={32} />
-          </div>
-        ) : (
-          <div style={{
-            fontFamily: 'var(--font-pixel)',
-            fontSize: '0.4rem',
-            color: PX.grayLight,
-            textAlign: 'center',
-            padding: '1.5rem 0',
-            lineHeight: 2,
-          }}>
-            {broadcasts.length > 0
-              ? '> SELECT A BROADCAST TO PLAY'
-              : '> NO BROADCASTS YET - STAY TUNED'}
           </div>
         )}
       </div>
 
-      {/* ── BROADCAST LIST ── */}
+      {/* BROADCAST LIST */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 1rem' }}>
         <div style={{
           fontFamily: 'var(--font-pixel)',
@@ -479,13 +633,19 @@ export default function RadioClient() {
           return (
             <div
               key={b.id}
-              onClick={() => b.audioUrlMp3 && playBroadcast(b)}
+              onClick={() => {
+                if (!b.audioUrlMp3) return;
+                const playable = broadcasts.filter((x) => x.audioUrlMp3);
+                const pIdx = playable.findIndex((x) => x.id === b.id);
+                setBroadcastIndex(pIdx >= 0 ? pIdx : 0);
+                playBroadcast(b, pIdx >= 0 ? pIdx : 0);
+              }}
               style={{
                 display: 'flex',
                 gap: '0.75rem',
                 alignItems: 'baseline',
                 padding: '6px 4px',
-                borderBottom: `1px solid rgba(0,0,0,0.1)`,
+                borderBottom: '1px solid rgba(0,0,0,0.1)',
                 cursor: b.audioUrlMp3 ? 'pointer' : 'default',
                 background: isActive ? 'rgba(0,204,68,0.08)' : 'transparent',
                 fontFamily: 'var(--font-pixel)',
@@ -528,7 +688,7 @@ export default function RadioClient() {
         })}
       </div>
 
-      {/* ── FOOTER ── */}
+      {/* FOOTER */}
       <footer style={{
         padding: '0.5rem 1rem',
         borderTop: `3px solid ${PX.black}`,

@@ -7,6 +7,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import Redis from 'ioredis';
 import { db, agents, eq, desc, and } from '@phonebook/database';
 import { voiceBroadcasts, broadcastTopics, broadcastSubscriptions } from '@phonebook/database';
 import type { VoiceConfig } from '@phonebook/database';
@@ -14,6 +15,9 @@ import { requireAgentAuth, type AuthenticatedAgent } from '../auth.js';
 import { createBroadcast } from '../services/broadcast-engine.js';
 import { scheduleAgent, unscheduleAgent } from '../services/broadcast-scheduler.js';
 import { broadcastEmitter } from './events.js';
+
+const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+const BROADCAST_RATE_LIMIT = 30 * 60; // 30 minutes
 
 export async function broadcastsRouter(fastify: FastifyInstance) {
   // ─── PUBLIC ENDPOINTS ─────────────────────────────────────
@@ -130,12 +134,29 @@ export async function broadcastsRouter(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'reporterAgentId and topicSlug required' });
     }
 
+    // Rate limit: 1 broadcast per agent per 30 minutes
+    const rlKey = `broadcast_req:${reporterAgentId}`;
+    const rlExisting = await redis.get(rlKey);
+    if (rlExisting) {
+      const ttl = await redis.ttl(rlKey);
+      return reply.code(429).send({
+        error: 'RATE_LIMITED',
+        nextAvailableAt: Date.now() + ttl * 1000,
+        message: `Please wait ${Math.ceil(ttl / 60)} minutes before requesting another broadcast`,
+      });
+    }
+
     const result = await createBroadcast({
       agentId: reporterAgentId,
       topicSlug,
       triggerType: 'on_demand',
       requestedBy: agent.id,
     });
+
+    // Set rate limit after successful creation
+    if (result.status !== 'failed') {
+      await redis.set(rlKey, Date.now().toString(), 'EX', BROADCAST_RATE_LIMIT);
+    }
 
     return reply.code(result.status === 'failed' ? 500 : 201).send(result);
   });

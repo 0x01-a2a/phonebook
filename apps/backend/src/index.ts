@@ -26,6 +26,7 @@ import { voiceRouter } from './routes/voice.js';
 import { twilioRouter } from './routes/twilio.js';
 import { websocketHandler } from './websocket/handler.js';
 import { broadcastsRouter } from './routes/broadcasts.js';
+import { radioDjRouter } from './routes/radio-dj.js';
 import * as broadcastScheduler from './services/broadcast-scheduler.js';
 
 async function validateDependencies(): Promise<void> {
@@ -104,6 +105,7 @@ const start = async () => {
     await fastify.register(voiceRouter, { prefix: '/api/voice' });
     await fastify.register(twilioRouter, { prefix: '/api/twilio' });
     await fastify.register(broadcastsRouter, { prefix: '/api/broadcasts' });
+    await fastify.register(radioDjRouter, { prefix: '/api/radio-dj' });
 
     // Serve audio files from data/audio/
     fastify.get('/api/audio/*', async (request, reply) => {
