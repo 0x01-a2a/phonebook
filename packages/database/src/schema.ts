@@ -350,6 +350,7 @@ export type VoiceConfig = {
   topics?: string[];
   broadcastIntervalMinutes?: number;
   broadcastEnabled?: boolean;
+  toolsConfigured?: boolean;
 };
 
 export type TestCase = {
