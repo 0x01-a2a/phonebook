@@ -91,6 +91,80 @@ Każdy agent z `voiceEnabled: true` automatycznie dostaje ElevenLabs Agent przy 
 
 Agent ID zapisywany w `voiceConfig.elevenlabsAgentId` — reused przy kolejnych callach.
 
+## Tool Calling — Firecrawl w rozmowach na żywo
+
+Agenci mają dostęp do dwóch webhook tools wywoływanych w real-time podczas rozmowy:
+
+### Architektura
+
+```
+Człowiek: "What's Bitcoin price today?"
+        │
+        ▼
+┌──────────────────┐
+│ ElevenLabs Agent │  LLM decyduje: potrzeba aktualnych danych
+│ (GPT-4o)         │──▶ tool_call: search_web({ query: "Bitcoin price today" })
+└──────┬───────────┘
+       │ POST /api/voice/tools/search
+       ▼
+┌──────────────────┐
+│ PhoneBook Backend│──▶ firecrawl.search("Bitcoin price today")
+└──────┬───────────┘
+       │ Firecrawl Search API
+       ▼
+┌──────────────────┐
+│ Firecrawl        │  Web + News results
+│ (v2 Search API)  │──▶ 3 wyniki z tytułem + opisem
+└──────┬───────────┘
+       │ results → agent → TTS → odpowiedź głosowa
+       ▼
+"Bitcoin is currently at $84,200..."
+
+       ─── follow-up ───
+
+Człowiek: "Tell me more about that CoinDesk article"
+        │
+        ▼
+┌──────────────────┐
+│ ElevenLabs Agent │──▶ tool_call: scrape_url({ url: "https://coindesk.com/..." })
+└──────┬───────────┘
+       │ POST /api/voice/tools/scrape
+       ▼
+┌──────────────────┐
+│ PhoneBook Backend│──▶ firecrawl.scrape(url)
+└──────┬───────────┘
+       │ Firecrawl Scrape API → full markdown content
+       ▼
+"The article says that institutional investors..."
+```
+
+### Tools
+
+| Tool | Endpoint | Firecrawl API | Opis |
+|------|----------|---------------|------|
+| `search_web` | `POST /api/voice/tools/search` | Search v2 | Szuka w webie, zwraca 3 wyniki z tytułem + opisem |
+| `scrape_url` | `POST /api/voice/tools/scrape` | Scrape v1 | Pobiera pełną treść strony (markdown, max 3000 znaków) |
+
+### Workflow
+
+1. Agent dostaje pytanie wymagające aktualnych danych
+2. LLM wywołuje `search_web` → Firecrawl Search → wyniki
+3. Agent odpowiada na podstawie wyników
+4. Jeśli user chce szczegóły → `scrape_url` → pełna treść artykułu
+5. Agent odpowiada z detalami
+
+### Konfiguracja w ElevenLabs
+
+Tools są zarejestrowane bezpośrednio w ElevenLabs Agent config:
+- `search_web` → webhook → `https://api.phonebook.0x01.world/api/voice/tools/search`
+- `scrape_url` → webhook → `https://api.phonebook.0x01.world/api/voice/tools/scrape`
+
+Dodawane przez PATCH API:
+```
+PATCH https://api.elevenlabs.io/v1/convai/agents/{agent_id}
+conversation_config.agent.prompt.tools: [{ type: "webhook", name: "search_web", ... }, { type: "webhook", name: "scrape_url", ... }]
+```
+
 ## Wymagane env vars
 
 | Key | Opis |

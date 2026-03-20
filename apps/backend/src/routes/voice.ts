@@ -35,6 +35,34 @@ export async function voiceRouter(fastify: FastifyInstance) {
       return { results: 'Search temporarily unavailable.' };
     }
   });
+  /**
+   * ElevenLabs ConvAI tool webhook — scrape a URL for full content during voice calls.
+   * Follow-up to search_web: agent finds a URL, then scrapes it for details.
+   */
+  fastify.post('/tools/scrape', async (request, reply) => {
+    const { url } = request.body as { url?: string };
+
+    if (!url) {
+      return { content: 'No URL provided.' };
+    }
+
+    console.log(`[VoiceTool] scrape_url called: "${url}"`);
+
+    try {
+      const result = await firecrawl.scrape(url, { maxLength: 3000 });
+
+      if (!result) {
+        return { content: `Could not scrape "${url}".` };
+      }
+
+      console.log(`[VoiceTool] Scraped ${result.title} (${result.markdown.length} chars)`);
+      return { content: `# ${result.title}\n\n${result.markdown}` };
+    } catch (err) {
+      console.error('[VoiceTool] Scrape failed:', err);
+      return { content: 'Scraping temporarily unavailable.' };
+    }
+  });
+
   fastify.post('/call', async (request, reply) => {
     const { phoneNumber, message } = request.body as {
       phoneNumber: string;

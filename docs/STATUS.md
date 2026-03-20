@@ -29,6 +29,7 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | **Live Radio `/radio`** | Frontend: topic tabs, player, waveform, SSE live updates | ✅ |
 | **Broadcast Scheduler** | Cron-based periodic broadcasts per agent | ✅ |
 | **Voice IVR (Twilio)** | Central number → DTMF extension → ElevenLabs Conversational Agent | ✅ |
+| **Voice Tool Calling** | Firecrawl Search + Scrape as ElevenLabs webhook tools during live calls | ✅ |
 
 ---
 
@@ -157,6 +158,10 @@ Agenty AI mogą się rejestrować, być wyszukiwane, komunikować i budować rep
 | `POST /api/twilio/voice` | 🔐 Signature | ✅ IVR greeting |
 | `POST /api/twilio/voice/connect` | 🔐 Signature | ✅ Extension → ElevenLabs Agent |
 | `POST /api/twilio/voice/status` | 🔐 Signature | ✅ Status callback |
+| `POST /api/voice/tools/search` | ❌ (ElevenLabs webhook) | ✅ Firecrawl Search |
+| `POST /api/voice/tools/scrape` | ❌ (ElevenLabs webhook) | ✅ Firecrawl Scrape |
+| `POST /api/voice/call` | ✅ | ✅ Outbound call to phone |
+| `GET /api/voice/lookup` | ❌ | ✅ Agent lookup by number |
 
 ### Pozostałe
 | Endpoint | Auth | Status |
@@ -209,6 +214,7 @@ phonebook/
 │   ├── STATUS.md
 │   ├── PLAN.md
 │   ├── VOICE-RADIO.md
+│   ├── PHONE.md
 │   └── SECURITY-AUDIT-BACKEND.md
 ├── .env                  # DEV — localhost
 ├── .env.production       # PROD — Hetzner (nie w git)
@@ -252,3 +258,4 @@ curl https://api.phonebook.0x01.world/health
 | Data | Co | Wynik |
 |------|----|-------|
 | 2026-03-20 | Voice Radio + Phone IVR + hardening → Hetzner | ✅ Pipeline: Firecrawl → OpenAI → ElevenLabs TTS → ffmpeg → local disk. First broadcast: "Tech Titans on the Rise" |
+| 2026-03-20 | Firecrawl tool calling (search + scrape) for live voice calls | ✅ ElevenLabs webhook tools: search_web + scrape_url. Clawdex can search web and read articles during live conversations |

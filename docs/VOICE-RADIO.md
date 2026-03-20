@@ -38,7 +38,7 @@ System głosowy PhoneBook — agenci AI działają jak **dziennikarze radiowi**.
 | Limit | Wartość | Cel |
 |-------|---------|-----|
 | ElevenLabs daily chars | `ELEVENLABS_DAILY_CHAR_LIMIT` (default 50000) | Kontrola kosztów TTS |
-| Max chars per broadcast | 3000 | Ograniczenie długości skryptu |
+| Max chars per broadcast | 1500 | Ograniczenie długości skryptu |
 | Firecrawl rate limit | 10 calls/min (self-imposed) | Ochrona przed ban |
 | WhatsApp send delay | 500ms between sends | Twilio rate limit |
 
@@ -135,8 +135,8 @@ Retro radio UI w stylu PhoneBook (Special Elite + Courier Prime, cream/brown pal
 
 | Serwis | API | Model/Wersja | Env var |
 |--------|-----|-------------|---------|
-| **Firecrawl** | `POST /v2/search` | web+news, Bearer auth | `FIRECRAWL_API_KEY` |
-| **MiniMax** | `POST /v1/text/chatcompletion_v2` | minimax-01, temp 0.8 | `MINIMAX_API_KEY` |
+| **Firecrawl** | `POST /v2/search` + `POST /v1/scrape` | web+news search + full page scrape | `FIRECRAWL_API_KEY` |
+| **OpenAI** | `POST /v1/chat/completions` | gpt-4o-mini, temp 0.8 | `OPENAI_API_KEY` |
 | **ElevenLabs** | `POST /v1/text-to-speech/{voiceId}` | eleven_v3 (Audio Tags) | `ELEVENLABS_API_KEY` |
 | **Local Disk** | `data/audio/` + `/api/audio/*` | — | `API_URL` (base URL for public audio links) |
 | **Twilio** | Messages API | WhatsApp voice notes | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER` |
@@ -154,9 +154,9 @@ Wspierane tagi w skryptach broadcastów:
 
 ---
 
-## Live Voice Calls — ElevenLabs Agents + Twilio (V2) ✅
+## Live Voice Calls — ElevenLabs Agents + Twilio + Firecrawl Tool Calling (V2) ✅
 
-Zaimplementowane: dynamiczne tworzenie ElevenLabs Agents + Twilio IVR + Register Call routing.
+Zaimplementowane: dynamiczne tworzenie ElevenLabs Agents + Twilio IVR + Register Call routing + **real-time Firecrawl tool calling** (search + scrape).
 
 ### Architektura
 
@@ -189,13 +189,15 @@ Human calls +1-385-475-6347
   └──────────────────┘
 ```
 
-### Endpointy Voice IVR
+### Endpointy Voice IVR + Tool Calling
 
 | Endpoint | Opis |
 |----------|------|
 | `POST /api/twilio/voice` | Twilio voice webhook — IVR greeting + DTMF gather |
 | `POST /api/twilio/voice/connect` | Extension → agent lookup → ElevenLabs Register Call |
 | `POST /api/twilio/voice/status` | Status callback (ACK) |
+| `POST /api/voice/tools/search` | ElevenLabs webhook tool — Firecrawl Search (real-time web search) |
+| `POST /api/voice/tools/scrape` | ElevenLabs webhook tool — Firecrawl Scrape (full page content) |
 
 ### ElevenLabs Agent Management
 
@@ -225,6 +227,19 @@ POST https://api.elevenlabs.io/v1/convai/agents/create
 }
 // → { agent_id: "abc123" } → saved to voiceConfig.elevenlabsAgentId
 ```
+
+### Firecrawl Tool Calling (real-time during calls)
+
+Agenci ElevenLabs mają dostęp do Firecrawl przez webhook tools — mogą szukać w internecie i scrapować strony **w trakcie rozmowy głosowej**.
+
+| Tool | Firecrawl API | Opis |
+|------|---------------|------|
+| `search_web` | Search v2 (web+news) | Szuka w webie, 3 wyniki, ograniczone do ostatniego dnia |
+| `scrape_url` | Scrape v1 (markdown) | Pełna treść URL, max 3000 znaków, main content only |
+
+**Flow:** User pyta o aktualności → agent wywołuje `search_web` → dostaje wyniki → odpowiada. Jeśli user chce więcej szczegółów → agent wywołuje `scrape_url` z URL z wyników → czyta pełny artykuł → odpowiada z detalami.
+
+Tools rejestrowane w ElevenLabs Agent config jako webhook type, timeout 20s.
 
 ### Setup Twilio (jednorazowo)
 
@@ -278,6 +293,7 @@ Agent A (reporter)                    Agent B (ekspert)
 | `apps/backend/src/services/broadcast-engine.ts` | Pipeline orchestrator |
 | `apps/backend/src/services/broadcast-scheduler.ts` | Cron scheduler |
 | `apps/backend/src/lib/audio-convert.ts` | MP3→OGG Opus (ffmpeg) |
+| `apps/backend/src/routes/voice.ts` | Voice tool webhooks (search + scrape) + call + lookup |
 | `apps/backend/src/routes/broadcasts.ts` | REST API + SSE |
 | `apps/frontend/src/app/radio/page.tsx` | Server component |
 | `apps/frontend/src/app/radio/RadioClient.tsx` | Radio UI |

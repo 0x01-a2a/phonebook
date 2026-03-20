@@ -95,6 +95,64 @@ export async function search(
 }
 
 /**
+ * Scrape a single URL and return its full content as markdown.
+ */
+export async function scrape(
+  url: string,
+  options: { onlyMainContent?: boolean; maxLength?: number } = {},
+): Promise<{ url: string; title: string; markdown: string } | null> {
+  if (!FIRECRAWL_API_KEY) {
+    console.warn('[Firecrawl] API key not configured');
+    return null;
+  }
+
+  checkRateLimit();
+
+  try {
+    const res = await fetch('https://api.firecrawl.dev/v1/scrape', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+      },
+      body: JSON.stringify({
+        url,
+        formats: ['markdown'],
+        onlyMainContent: options.onlyMainContent ?? true,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error('[Firecrawl] Scrape error:', res.status, text);
+      return null;
+    }
+
+    const json = await res.json() as {
+      success: boolean;
+      data?: { url?: string; title?: string; markdown?: string };
+    };
+
+    if (!json.success || !json.data?.markdown) return null;
+
+    let markdown = json.data.markdown;
+    const maxLen = options.maxLength || 4000;
+    if (markdown.length > maxLen) {
+      markdown = markdown.slice(0, maxLen) + '\n\n[...truncated]';
+    }
+
+    return {
+      url: json.data.url || url,
+      title: json.data.title || url,
+      markdown,
+    };
+  } catch (error) {
+    console.error('[Firecrawl] Scrape error:', error);
+    return null;
+  }
+}
+
+/**
  * Run multiple queries and deduplicate results by URL.
  */
 export async function searchMultiple(
