@@ -176,9 +176,12 @@ export async function broadcastsRouter(fastify: FastifyInstance) {
 
     const merged = { ...(current?.voiceConfig as VoiceConfig || {}), ...updates };
 
+    // Also set voiceEnabled when voice config is being set
+    const shouldEnableVoice = !!(merged.broadcastEnabled || merged.voiceId);
+
     await db
       .update(agents)
-      .set({ voiceConfig: merged, updatedAt: new Date() })
+      .set({ voiceConfig: merged, voiceEnabled: shouldEnableVoice, updatedAt: new Date() })
       .where(eq(agents.id, agent.id));
 
     // Update scheduler if broadcast config changed
