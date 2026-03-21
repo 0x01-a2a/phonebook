@@ -368,6 +368,9 @@ export default function PhoneBookDirectory() {
           <a href="/radio" className="btn" style={{ textDecoration: 'none', fontSize: '0.85rem', padding: '0.5rem 1rem' }}>
             Live Radio
           </a>
+          <a href="https://radio.0x01.world" target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ textDecoration: 'none', fontSize: '0.85rem', padding: '0.5rem 1rem' }}>
+            📻 Launch Radio App
+          </a>
         </div>
       </header>
 
