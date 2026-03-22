@@ -276,6 +276,8 @@ export default function PhoneClient() {
   const [copied, setCopied] = useState<string | null>(null);
   const [lookupAgent, setLookupAgent] = useState<AgentInfo | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>('phone');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -445,6 +447,7 @@ export default function PhoneClient() {
     if (ext) setDigits(ext[1] + ext[2]);
     setSelectedAgent(agent);
     setMobileTab('phone');
+    setDrawerOpen(false);
   }, []);
 
   useEffect(() => {
@@ -548,45 +551,45 @@ export default function PhoneClient() {
 
   // ── LCD STATUS BAR ──
   const lcdStatusBar = (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 6px', borderBottom: `1px solid ${LCD.mid}` }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 10px', borderBottom: `2px solid ${LCD.mid}` }}>
       {/* Signal bars */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 10 }}>
-        {[3, 5, 7, 9].map((h, i) => (
-          <div key={i} style={{ width: 3, height: h, background: LCD.dark }} />
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 16 }}>
+        {[5, 8, 11, 14].map((h, i) => (
+          <div key={i} style={{ width: 4, height: h, background: LCD.dark }} />
         ))}
       </div>
       {/* Title */}
-      <span style={{ ...lcdFont, fontSize: '0.22rem', letterSpacing: '0.08em' }}>PhoneBook</span>
+      <span style={{ ...lcdFont, fontSize: '0.32rem', letterSpacing: '0.08em' }}>PhoneBook</span>
       {/* Battery */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         <div style={{
-          width: 14, height: 8,
-          border: `1px solid ${LCD.dark}`,
-          display: 'flex', alignItems: 'center', padding: 1, gap: 1,
+          width: 22, height: 12,
+          border: `2px solid ${LCD.dark}`,
+          display: 'flex', alignItems: 'center', padding: 2, gap: 2,
         }}>
-          <div style={{ width: 3, height: 4, background: LCD.dark }} />
-          <div style={{ width: 3, height: 4, background: LCD.dark }} />
-          <div style={{ width: 3, height: 4, background: LCD.dark }} />
+          <div style={{ width: 4, height: 6, background: LCD.dark }} />
+          <div style={{ width: 4, height: 6, background: LCD.dark }} />
+          <div style={{ width: 4, height: 6, background: LCD.dark }} />
         </div>
-        <div style={{ width: 2, height: 4, background: LCD.dark }} />
+        <div style={{ width: 3, height: 6, background: LCD.dark }} />
       </div>
     </div>
   );
 
   // ── LCD CONTENT: IDLE ──
   const lcdIdle = (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '6px 8px', gap: 6 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '10px 12px', gap: 10 }}>
       {/* Extension label */}
-      <div style={{ ...lcdFont, fontSize: '0.2rem', letterSpacing: '0.1em', textAlign: 'center' }}>
+      <div style={{ ...lcdFont, fontSize: '0.3rem', letterSpacing: '0.1em', textAlign: 'center' }}>
         ENTER EXTENSION
       </div>
       {/* Digits display */}
       <div style={{
         ...lcdFont,
-        fontSize: 'clamp(0.7rem, 4vw, 1.1rem)',
+        fontSize: 'clamp(0.9rem, 5vw, 1.4rem)',
         textAlign: 'center',
-        padding: '4px 0',
-        minHeight: '1.6rem',
+        padding: '6px 0',
+        minHeight: '2rem',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         letterSpacing: '0.12em',
       }}>
@@ -597,16 +600,16 @@ export default function PhoneClient() {
             {digits.length < 8 && <span className="lcd-blink">_</span>}
           </span>
         ) : (
-          <span style={{ color: LCD.mid, fontSize: '0.45em' }}>________</span>
+          <span style={{ color: LCD.mid, fontSize: '0.5em' }}>________</span>
         )}
       </div>
       {/* Lookup result */}
       {lookupAgent && (
         <div style={{
-          ...lcdFont, fontSize: '0.25rem', textAlign: 'center',
-          padding: '3px 6px',
+          ...lcdFont, fontSize: '0.32rem', textAlign: 'center',
+          padding: '5px 8px',
           border: `1px solid ${LCD.mid}`,
-          letterSpacing: '0.05em', lineHeight: 1.8,
+          letterSpacing: '0.05em', lineHeight: 2,
         }}>
           <div>&gt; {lookupAgent.name}</div>
           <div style={{ color: lookupAgent.voiceEnabled ? LCD.dark : LCD.mid }}>
@@ -616,13 +619,13 @@ export default function PhoneClient() {
       )}
       {/* Error */}
       {error && (
-        <div style={{ ...lcdFont, fontSize: '0.22rem', textAlign: 'center', letterSpacing: '0.05em' }} className="lcd-blink">
+        <div style={{ ...lcdFont, fontSize: '0.28rem', textAlign: 'center', letterSpacing: '0.05em' }} className="lcd-blink">
           ! {error}
         </div>
       )}
       {/* Status */}
       {browserState === 'ended' && (
-        <div style={{ ...lcdFont, fontSize: '0.22rem', textAlign: 'center', color: LCD.mid }}>
+        <div style={{ ...lcdFont, fontSize: '0.28rem', textAlign: 'center', color: LCD.mid }}>
           CALL ENDED {formatDuration(callDuration)}
         </div>
       )}
@@ -631,14 +634,14 @@ export default function PhoneClient() {
 
   // ── LCD CONTENT: ACTIVE CALL ──
   const lcdActiveCall = (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '4px 8px', gap: 4 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '8px 12px', gap: 6 }}>
       {/* Agent name */}
-      <div style={{ ...lcdFont, fontSize: '0.35rem', textAlign: 'center', letterSpacing: '0.08em', lineHeight: 1.8 }}>
+      <div style={{ ...lcdFont, fontSize: '0.45rem', textAlign: 'center', letterSpacing: '0.08em', lineHeight: 1.8 }}>
         {selectedAgent?.name || 'UNKNOWN'}
       </div>
 
       {/* Status line */}
-      <div style={{ ...lcdFont, fontSize: '0.22rem', textAlign: 'center', letterSpacing: '0.1em' }}
+      <div style={{ ...lcdFont, fontSize: '0.3rem', textAlign: 'center', letterSpacing: '0.1em' }}
         className={browserState === 'ringing' ? 'lcd-blink' : undefined}>
         {browserState === 'requesting_mic' ? 'MIC ACCESS...'
           : browserState === 'connecting' ? 'CONNECTING...'
@@ -650,10 +653,10 @@ export default function PhoneClient() {
       {browserState === 'connected' && (
         <div style={{
           ...lcdFont,
-          fontSize: 'clamp(0.6rem, 3.5vw, 0.9rem)',
+          fontSize: 'clamp(0.8rem, 5vw, 1.2rem)',
           textAlign: 'center',
           letterSpacing: '0.15em',
-          padding: '2px 0',
+          padding: '4px 0',
           color: !isUnlimited && remaining <= 5 ? '#CC0000' : undefined,
         }}
           className={!isUnlimited && remaining <= 5 ? 'lcd-blink-fast' : !isUnlimited && remaining === 10 ? 'lcd-blink-once' : undefined}>
@@ -666,14 +669,14 @@ export default function PhoneClient() {
 
       {/* Equalizer */}
       {browserState === 'connected' && (
-        <div style={{ padding: '2px 12px' }}>
+        <div style={{ padding: '4px 12px' }}>
           <NokiaEqualizer isSpeaking={conversation.isSpeaking} />
         </div>
       )}
 
       {/* Speaking indicator */}
       {browserState === 'connected' && conversation.isSpeaking && (
-        <div style={{ ...lcdFont, fontSize: '0.2rem', textAlign: 'center', letterSpacing: '0.08em' }}>
+        <div style={{ ...lcdFont, fontSize: '0.28rem', textAlign: 'center', letterSpacing: '0.08em' }}>
           AGENT SPEAKING...
         </div>
       )}
@@ -681,7 +684,7 @@ export default function PhoneClient() {
       {/* Remaining time warning */}
       {browserState === 'connected' && !isUnlimited && remaining <= 15 && (
         <div style={{
-          ...lcdFont, fontSize: '0.2rem', textAlign: 'center', letterSpacing: '0.05em',
+          ...lcdFont, fontSize: '0.28rem', textAlign: 'center', letterSpacing: '0.05em',
           color: remaining <= 10 ? '#CC0000' : undefined,
         }}
           className={remaining <= 5 ? 'lcd-blink-fast' : remaining === 10 ? 'lcd-blink-once' : undefined}>
@@ -691,7 +694,7 @@ export default function PhoneClient() {
 
       {/* Error */}
       {error && (
-        <div style={{ ...lcdFont, fontSize: '0.2rem', textAlign: 'center' }} className="lcd-blink">
+        <div style={{ ...lcdFont, fontSize: '0.28rem', textAlign: 'center' }} className="lcd-blink">
           ! {error}
         </div>
       )}
@@ -701,9 +704,9 @@ export default function PhoneClient() {
   // ── LCD SOFTKEYS ──
   const lcdSoftkeys = (
     <div style={{
-      display: 'flex', justifyContent: 'space-between', padding: '2px 8px',
-      borderTop: `1px solid ${LCD.mid}`,
-      ...lcdFont, fontSize: '0.2rem', letterSpacing: '0.05em',
+      display: 'flex', justifyContent: 'space-between', padding: '4px 12px',
+      borderTop: `2px solid ${LCD.mid}`,
+      ...lcdFont, fontSize: '0.28rem', letterSpacing: '0.05em',
       color: LCD.mid,
     }}>
       {isActive ? (
@@ -728,8 +731,8 @@ export default function PhoneClient() {
       disabled={disabled}
       style={{
         fontFamily: 'var(--font-pixel)',
-        fontSize: 'clamp(0.5rem, 2.5vw, 0.75rem)',
-        padding: 'clamp(6px, 1.5vw, 10px) 0',
+        fontSize: 'clamp(0.5rem, 2.7vw, 0.8rem)',
+        padding: 'clamp(8px, 2vw, 14px) 0',
         background: pressedKey === key ? NOKIA_KEY_PRESSED : NOKIA_KEY_BG,
         color: disabled ? '#555' : '#DDD',
         cursor: disabled ? 'not-allowed' : 'pointer',
@@ -742,7 +745,7 @@ export default function PhoneClient() {
       }}
     >
       {key}
-      {label && <div style={{ fontSize: '0.2rem', color: '#888', marginTop: 1, letterSpacing: '0.08em' }}>{label}</div>}
+      {label && <div style={{ fontSize: '0.25rem', color: '#888', marginTop: 2, letterSpacing: '0.08em' }}>{label}</div>}
     </button>
   );
 
@@ -780,7 +783,7 @@ export default function PhoneClient() {
           border: `3px solid ${NOKIA_BODY_EDGE}`,
           boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.2)',
           overflow: 'hidden',
-          minHeight: 'clamp(120px, 25vw, 180px)',
+          minHeight: 'clamp(190px, 45vw, 270px)',
           display: 'flex',
           flexDirection: 'column',
         }}>
@@ -789,14 +792,25 @@ export default function PhoneClient() {
           {lcdSoftkeys}
         </div>
 
-        {/* Navigation button (circular) */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, padding: '2px 0' }}>
+        {/* Navigation row */}
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '4px 4px' }}>
+          {/* AGENTS button */}
+          <button onClick={() => setDrawerOpen(true)} style={{
+            fontFamily: 'var(--font-pixel)', fontSize: '0.32rem', padding: '8px 12px',
+            background: NOKIA_KEY_BG, color: PX.green, border: `2px solid ${PX.green}`,
+            borderRadius: 4, cursor: 'pointer',
+            boxShadow: '0 2px 0 #1A1D1E',
+            lineHeight: 1.6,
+          }}>
+            AGENTS
+          </button>
+
           {/* Left softkey */}
           <button onClick={() => {
             if (isActive) { /* mute - future */ }
             else setMode(mode === 'browser' ? 'dial' : 'browser');
           }} style={{
-            fontFamily: 'var(--font-pixel)', fontSize: '0.25rem', padding: '4px 12px',
+            fontFamily: 'var(--font-pixel)', fontSize: '0.32rem', padding: '8px 12px',
             background: NOKIA_KEY_BG, color: '#AAA', border: `1px solid ${NOKIA_BODY_EDGE}`,
             borderRadius: 4, cursor: 'pointer',
             boxShadow: '0 2px 0 #1A1D1E',
@@ -811,6 +825,7 @@ export default function PhoneClient() {
             background: `radial-gradient(circle, ${NOKIA_KEY_PRESSED} 30%, ${NOKIA_KEY_BG} 70%)`,
             border: `2px solid ${NOKIA_BODY_EDGE}`,
             boxShadow: '0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)',
+            flexShrink: 0,
           }} />
 
           {/* Right softkey */}
@@ -818,12 +833,23 @@ export default function PhoneClient() {
             if (isActive) endBrowserCall();
             else clearAll();
           }} style={{
-            fontFamily: 'var(--font-pixel)', fontSize: '0.25rem', padding: '4px 12px',
+            fontFamily: 'var(--font-pixel)', fontSize: '0.32rem', padding: '8px 12px',
             background: NOKIA_KEY_BG, color: '#AAA', border: `1px solid ${NOKIA_BODY_EDGE}`,
             borderRadius: 4, cursor: 'pointer',
             boxShadow: '0 2px 0 #1A1D1E',
           }}>
             {isActive ? 'END' : 'CLEAR'}
+          </button>
+
+          {/* GUIDE button */}
+          <button onClick={() => setGuideOpen(true)} style={{
+            fontFamily: 'var(--font-pixel)', fontSize: '0.32rem', padding: '8px 12px',
+            background: NOKIA_KEY_BG, color: PX.blue, border: `2px solid ${PX.blue}`,
+            borderRadius: 4, cursor: 'pointer',
+            boxShadow: '0 2px 0 #1A1D1E',
+            lineHeight: 1.6,
+          }}>
+            GUIDE
           </button>
         </div>
 
@@ -866,7 +892,7 @@ export default function PhoneClient() {
         {/* Keypad */}
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 'clamp(3px, 0.8vw, 6px)', padding: '0 8px',
+          gap: 'clamp(5px, 1.2vw, 8px)', padding: '0 8px',
         }}>
           {[
             { k: '1', l: '' }, { k: '2', l: 'ABC' }, { k: '3', l: 'DEF' },
@@ -963,100 +989,241 @@ export default function PhoneClient() {
   );
 
   return (
-    <div style={{ minHeight: '100vh', background: PX.bg, display: 'flex', flexDirection: 'column', imageRendering: 'pixelated' }}>
-      {/* ── HEADER ── */}
-      <header style={{ textAlign: 'center', padding: '1rem 1rem 0.75rem', borderBottom: `4px solid ${PX.black}` }}>
-        <h1 style={{ fontFamily: 'var(--font-pixel)', fontSize: 'clamp(0.8rem, 2.5vw, 1.4rem)', color: PX.black, margin: 0, letterSpacing: '0.05em', lineHeight: 1.6 }}>
-          <span style={{ color: PX.greenDark }}>Phone</span>
-          <span style={{ color: PX.blueDark }}>Book</span>
-          {' '}<span style={{ color: PX.gray }}>Call</span>
-        </h1>
-        <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.4rem', color: PX.grayLight, marginTop: 4, letterSpacing: '0.1em' }}>TALK TO AI AGENTS</div>
-      </header>
+    <div style={{ minHeight: '100vh', background: PX.bg, display: 'flex', flexDirection: 'column', imageRendering: 'pixelated', position: 'relative', overflow: 'hidden' }}>
 
-      {/* ── NAV ── */}
-      <div style={{ display: 'flex', gap: '1rem', padding: '0.4rem 1rem', fontFamily: 'var(--font-pixel)', fontSize: '0.4rem', borderBottom: `2px solid ${PX.border}`, background: 'rgba(0,0,0,0.03)', alignItems: 'center' }}>
-        <a href="/" style={{ textDecoration: 'none', color: PX.greenDark }}>&lt; DIRECTORY</a>
-        <span style={{ color: PX.grayLight }}>|</span>
-        <a href="/radio" style={{ textDecoration: 'none', color: PX.blueDark }}>RADIO</a>
-        <span style={{ flex: 1 }} />
-        <button
-          onClick={() => setMode(mode === 'browser' ? 'dial' : 'browser')}
-          disabled={isActive}
-          style={{
-            fontFamily: 'var(--font-pixel)', fontSize: '0.32rem', padding: '3px 8px',
-            background: mode === 'browser' ? PX.green : PX.blue,
-            color: PX.black, cursor: isActive ? 'not-allowed' : 'pointer',
-            border: 'none', letterSpacing: '0.05em', lineHeight: 1.8,
-          }}
-        >
-          {mode === 'browser' ? 'WEB CALL' : 'PHONE CALL'}
-        </button>
-      </div>
+      {/* ── CRT SCANLINES OVERLAY ── */}
+      <div className="crt-scanlines" />
 
-      {/* ── DESKTOP LAYOUT (3 columns) ── */}
-      <div className="phone-desktop" style={{ flex: 1, display: 'flex', gap: '1rem', padding: '1rem', overflow: 'hidden' }}>
-        {agentsPanel(true)}
-        {phonePanel}
-        {guidePanel}
-      </div>
-
-      {/* ── MOBILE LAYOUT (tab-based) ── */}
-      <div className="phone-mobile" style={{ flex: 1, display: 'none', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
-          {mobileTab === 'agents' && agentsPanel(false)}
-          {mobileTab === 'phone' && phonePanel}
-          {mobileTab === 'guide' && guidePanel}
+      {/* ── AGENTS DRAWER (slides from left) ── */}
+      <div style={{
+        position: 'fixed', top: 0, left: 0, bottom: 0,
+        width: 'min(360px, 85vw)',
+        background: PX.black,
+        zIndex: 100,
+        display: 'flex', flexDirection: 'column',
+        transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
+        transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        borderRight: `3px solid ${PX.green}`,
+        boxShadow: drawerOpen ? '6px 0 24px rgba(0,0,0,0.5)' : 'none',
+      }}>
+        {/* Drawer header */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '12px 14px',
+          borderBottom: `2px solid ${PX.green}`,
+          background: 'rgba(0,204,68,0.06)',
+          flexShrink: 0,
+        }}>
+          <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.32rem', color: PX.green, letterSpacing: '0.1em' }}>
+            AGENTS [{allAgents.length}]
+          </span>
+          <button onClick={() => setDrawerOpen(false)} style={{
+            fontFamily: 'var(--font-pixel)', fontSize: '0.35rem', color: PX.green,
+            background: 'none', border: `1px solid ${PX.green}`, padding: '2px 8px',
+            cursor: 'pointer', lineHeight: 1.8,
+          }}>
+            X
+          </button>
+        </div>
+        {/* Agent list (scrollable) */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {agentsPanel(true)}
         </div>
       </div>
 
-      {/* ── MOBILE BOTTOM NAV ── */}
-      <div className="phone-mobile-nav" style={{
-        display: 'none',
-        borderTop: `3px solid ${PX.black}`,
+      {/* ── GUIDE DRAWER (slides from right) ── */}
+      <div style={{
+        position: 'fixed', top: 0, right: 0, bottom: 0,
+        width: 'min(360px, 85vw)',
         background: PX.black,
+        zIndex: 100,
+        display: 'flex', flexDirection: 'column',
+        transform: guideOpen ? 'translateX(0)' : 'translateX(100%)',
+        transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        borderLeft: `3px solid ${PX.blue}`,
+        boxShadow: guideOpen ? '-6px 0 24px rgba(0,0,0,0.5)' : 'none',
       }}>
-        {([
-          { tab: 'agents' as MobileTab, label: 'AGENTS', icon: '[]' },
-          { tab: 'phone' as MobileTab, label: 'PHONE', icon: '#' },
-          { tab: 'guide' as MobileTab, label: 'GUIDE', icon: '?' },
-        ]).map(({ tab, label, icon }) => (
-          <button
-            key={tab}
-            onClick={() => setMobileTab(tab)}
-            style={{
-              flex: 1,
-              fontFamily: 'var(--font-pixel)',
-              fontSize: '0.3rem',
-              padding: '10px 4px 8px',
-              background: mobileTab === tab ? 'rgba(0,204,68,0.15)' : 'transparent',
-              color: mobileTab === tab ? PX.green : PX.grayLight,
-              cursor: 'pointer',
-              border: 'none',
-              borderTop: mobileTab === tab ? `2px solid ${PX.green}` : '2px solid transparent',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 2,
-              lineHeight: 1.6,
-            }}
-          >
-            <span style={{ fontSize: '0.4rem' }}>{icon}</span>
-            {label}
+        {/* Guide drawer header */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '12px 14px',
+          borderBottom: `2px solid ${PX.blue}`,
+          background: 'rgba(0,102,255,0.06)',
+          flexShrink: 0,
+        }}>
+          <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.32rem', color: PX.blue, letterSpacing: '0.1em' }}>
+            HOW TO CALL
+          </span>
+          <button onClick={() => setGuideOpen(false)} style={{
+            fontFamily: 'var(--font-pixel)', fontSize: '0.35rem', color: PX.blue,
+            background: 'none', border: `1px solid ${PX.blue}`, padding: '2px 8px',
+            cursor: 'pointer', lineHeight: 1.8,
+          }}>
+            X
           </button>
-        ))}
+        </div>
+        {/* Guide content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 18px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Mode toggle */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setMode('browser')} style={{
+              flex: 1, fontFamily: 'var(--font-pixel)', fontSize: '0.3rem', padding: '8px',
+              background: mode === 'browser' ? PX.green : 'transparent',
+              color: mode === 'browser' ? PX.black : PX.grayLight,
+              border: `2px solid ${mode === 'browser' ? PX.green : PX.grayLight}`,
+              cursor: 'pointer', lineHeight: 1.8,
+            }}>
+              WEB CALL
+            </button>
+            <button onClick={() => setMode('dial')} style={{
+              flex: 1, fontFamily: 'var(--font-pixel)', fontSize: '0.3rem', padding: '8px',
+              background: mode === 'dial' ? PX.blue : 'transparent',
+              color: mode === 'dial' ? PX.black : PX.grayLight,
+              border: `2px solid ${mode === 'dial' ? PX.blue : PX.grayLight}`,
+              cursor: 'pointer', lineHeight: 1.8,
+            }}>
+              PHONE CALL
+            </button>
+          </div>
+
+          {/* Steps */}
+          <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.32rem', color: PX.white, lineHeight: 2.8 }}>
+            {mode === 'browser' ? (
+              <>
+                <div><span style={{ color: PX.blue }}>1.</span> OPEN AGENTS PANEL</div>
+                <div><span style={{ color: PX.blue }}>2.</span> CLICK AGENT TO DIAL</div>
+                <div><span style={{ color: PX.blue }}>3.</span> ALLOW MICROPHONE</div>
+                <div><span style={{ color: PX.blue }}>4.</span> TALK LIVE!</div>
+              </>
+            ) : (
+              <>
+                <div><span style={{ color: PX.blue }}>1.</span> CALL THE NUMBER:</div>
+                <div style={{ textAlign: 'center', margin: '8px 0' }}>
+                  <a href={`tel:${TWILIO_NUMBER}`} style={{ color: PX.green, textDecoration: 'none', fontSize: '0.4rem' }}>{TWILIO_DISPLAY}</a>
+                </div>
+                <div><span style={{ color: PX.blue }}>2.</span> WAIT FOR IVR</div>
+                <div><span style={{ color: PX.blue }}>3.</span> DIAL 8-DIGIT EXT</div>
+                <div><span style={{ color: PX.blue }}>4.</span> CONNECTED!</div>
+              </>
+            )}
+          </div>
+
+          {/* Selected agent extension */}
+          {selExtStr && (
+            <div style={{
+              padding: '12px', background: 'rgba(0,204,68,0.1)',
+              border: `2px solid ${PX.green}`,
+              fontFamily: 'var(--font-pixel)', textAlign: 'center',
+            }}>
+              <div style={{ fontSize: '0.25rem', color: PX.grayLight, marginBottom: 6 }}>
+                {selectedAgent?.name || lookupAgent?.name || 'AGENT'}
+              </div>
+              <div style={{ fontSize: '0.55rem', color: PX.green, letterSpacing: '0.12em' }}>
+                {selExtStr}
+              </div>
+            </div>
+          )}
+
+          {/* Copy central number */}
+          <button onClick={() => { navigator.clipboard?.writeText(TWILIO_NUMBER).catch(() => {}); }} style={{
+            fontFamily: 'var(--font-pixel)', fontSize: '0.3rem', padding: '10px',
+            background: 'transparent', color: PX.blue, cursor: 'pointer',
+            border: `2px solid ${PX.blue}`, lineHeight: 1.8, textAlign: 'center',
+          }}>
+            COPY: {TWILIO_DISPLAY}
+          </button>
+
+          {/* Info */}
+          <div style={{
+            fontFamily: 'var(--font-pixel)', fontSize: '0.25rem', color: PX.grayLight,
+            lineHeight: 2.4, padding: '12px', background: 'rgba(255,255,255,0.03)',
+            border: `1px solid rgba(255,255,255,0.08)`,
+          }}>
+            {mode === 'browser' ? (
+              <>
+                <div style={{ color: PX.green, fontSize: '0.3rem', marginBottom: 6 }}>WEB CALL MODE</div>
+                <div>VOICE VIA BROWSER — FREE</div>
+                <div>REQUIRES MICROPHONE ACCESS</div>
+                <div>MAX {MAX_CALL_SECONDS}S PER CALL</div>
+              </>
+            ) : (
+              <>
+                <div style={{ color: PX.blue, fontSize: '0.3rem', marginBottom: 6 }}>PHONE CALL MODE</div>
+                <div>CALLS VIA YOUR PHONE</div>
+                <div>STANDARD RATES APPLY</div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* ── DESKTOP FOOTER ── */}
-      <footer className="phone-desktop-footer" style={{
-        padding: '0.5rem 1rem', borderTop: `3px solid ${PX.black}`,
-        fontFamily: 'var(--font-pixel)', fontSize: '0.35rem', color: PX.grayLight,
+      {/* ── DRAWER BACKDROP (for both drawers) ── */}
+      {(drawerOpen || guideOpen) && (
+        <div
+          onClick={() => { setDrawerOpen(false); setGuideOpen(false); }}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 99,
+          }}
+        />
+      )}
+
+      {/* ── HEADER ── */}
+      <header style={{
+        textAlign: 'center', padding: '0.6rem 1rem',
+        borderBottom: `4px solid ${PX.black}`,
+      }}>
+        <h1 style={{
+          fontFamily: 'var(--font-pixel)',
+          fontSize: 'clamp(0.7rem, 2.5vw, 1.3rem)',
+          color: PX.black, margin: 0,
+          letterSpacing: '0.05em', lineHeight: 1.6,
+        }}>
+          <span style={{ color: PX.greenDark }}>Phone</span>
+          <span style={{ color: PX.blueDark }}>Book</span>
+          <span style={{ color: PX.gray }}> Call</span>
+        </h1>
+        <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.35rem', color: PX.grayLight, marginTop: 4, letterSpacing: '0.1em' }}>TALK TO AI AGENTS</div>
+      </header>
+
+      {/* ── NAV ── */}
+      <div style={{
+        display: 'flex', gap: '0.75rem', padding: '0.3rem 1rem',
+        fontFamily: 'var(--font-pixel)', fontSize: '0.32rem',
+        borderBottom: `2px solid ${PX.border}`,
+        background: 'rgba(0,0,0,0.03)', alignItems: 'center',
+      }}>
+        <a href="/" style={{ textDecoration: 'none', color: PX.greenDark }}>&lt; DIR</a>
+        <span style={{ color: PX.grayLight }}>|</span>
+        <a href="/radio" style={{ textDecoration: 'none', color: PX.blueDark }}>RADIO</a>
+        <span style={{ flex: 1 }} />
+        <span style={{ color: PX.grayLight, fontSize: '0.22rem' }}>
+          <a href={`tel:${TWILIO_NUMBER}`} style={{ color: PX.blue, textDecoration: 'none' }}>{TWILIO_DISPLAY}</a>
+        </span>
+      </div>
+
+      {/* ── MAIN: PHONE HERO (centered) ── */}
+      <main style={{
+        flex: 1, display: 'flex', flexDirection: 'column',
+        alignItems: 'center',
+        padding: 'clamp(0.75rem, 3vw, 2rem) 1rem',
+        overflowY: 'auto',
+        gap: 'clamp(0.75rem, 2vw, 1.5rem)',
+      }}>
+        {phonePanel}
+      </main>
+
+      {/* ── FOOTER ── */}
+      <footer style={{
+        padding: '0.4rem 1rem', borderTop: `3px solid ${PX.black}`,
+        fontFamily: 'var(--font-pixel)', fontSize: '0.25rem', color: PX.grayLight,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', lineHeight: 2,
       }}>
         <span>
           <span style={{ color: PX.greenDark }}>PHONE</span>
           <span style={{ color: PX.blueDark }}>BOOK</span>
-          {' CALL // '}<span style={{ color: PX.blue }}>CENTRAL: {TWILIO_DISPLAY}</span>
+          {' // 0x01 WORLD'}
         </span>
         <a href="/" style={{ color: PX.grayLight, textDecoration: 'none' }}>&lt; BACK</a>
       </footer>
@@ -1071,16 +1238,18 @@ export default function PhoneClient() {
         @keyframes blink-once { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
         .lcd-blink-once { animation: blink-once 0.6s ease 1; }
 
-        .phone-desktop { display: flex !important; }
-        .phone-mobile { display: none !important; }
-        .phone-mobile-nav { display: none !important; }
-        .phone-desktop-footer { display: flex !important; }
-
-        @media (max-width: 900px) {
-          .phone-desktop { display: none !important; }
-          .phone-mobile { display: flex !important; }
-          .phone-mobile-nav { display: flex !important; }
-          .phone-desktop-footer { display: none !important; }
+        .crt-scanlines {
+          position: fixed;
+          inset: 0;
+          pointer-events: none;
+          z-index: 200;
+          background: repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 0, 0, 0.03) 2px,
+            rgba(0, 0, 0, 0.03) 4px
+          );
         }
       `}</style>
     </div>
