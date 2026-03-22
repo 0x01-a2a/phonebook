@@ -19,6 +19,15 @@ export async function radioDjRouter(fastify: FastifyInstance) {
       }
     }
 
+    // Ensure at least one jingle exists
+    const hasJingle = clips.some((c) => c.type === 'jingle');
+    if (!hasJingle) {
+      const jingle = await getDjClip('jingle', 0);
+      if (jingle) {
+        clips = [...clips, jingle];
+      }
+    }
+
     return clips;
   });
 
@@ -27,12 +36,12 @@ export async function radioDjRouter(fastify: FastifyInstance) {
     const { type } = request.params as { type: string };
     const { variant } = request.query as { variant?: string };
 
-    if (!['intro', 'filler', 'signoff'].includes(type)) {
-      return reply.code(400).send({ error: 'Invalid type. Use: intro, filler, signoff' });
+    if (!['intro', 'filler', 'signoff', 'jingle'].includes(type)) {
+      return reply.code(400).send({ error: 'Invalid type. Use: intro, filler, signoff, jingle' });
     }
 
     const v = parseInt(variant || '0', 10);
-    const clip = await getDjClip(type as 'intro' | 'filler' | 'signoff', v);
+    const clip = await getDjClip(type as 'intro' | 'filler' | 'signoff' | 'jingle', v);
 
     if (!clip) {
       return reply.code(404).send({ error: 'Clip not found or rate limited' });

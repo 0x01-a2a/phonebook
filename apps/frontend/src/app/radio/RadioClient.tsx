@@ -27,13 +27,13 @@ interface Broadcast {
 }
 
 interface DjClip {
-  type: 'intro' | 'filler' | 'signoff';
+  type: 'intro' | 'filler' | 'signoff' | 'jingle';
   variant: number;
   audioUrl: string;
   script: string;
 }
 
-type RadioState = 'loading' | 'ready' | 'dj_intro' | 'broadcast' | 'dj_filler' | 'idle';
+type RadioState = 'loading' | 'ready' | 'jingle' | 'dj_intro' | 'broadcast' | 'dj_filler' | 'idle';
 
 const API = '';
 
@@ -89,6 +89,9 @@ export default function RadioClient() {
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const esRef = useRef<EventSource | null>(null);
   const fillerIndexRef = useRef(0);
+  const jingleIndexRef = useRef(0);
+  const jingleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const jingleNextStateRef = useRef<'dj_intro' | 'broadcast'>('dj_intro');
 
   // Load topics
   useEffect(() => {
@@ -175,6 +178,84 @@ export default function RadioClient() {
     sourceRef.current = source;
   }, []);
 
+  // 8-bit chiptune jingle — plays before the TTS tagline
+  const playChiptuneJingle = useCallback((): number => {
+    ensureAudioContext();
+    const ctx = audioCtxRef.current;
+    if (!ctx) return 0;
+    if (ctx.state === 'suspended') ctx.resume();
+
+    // News broadcast fanfare melody in 8-bit style
+    const melody: { freq: number; dur: number; type?: OscillatorType }[] = [
+      // Rising fanfare
+      { freq: 523.25, dur: 0.12 },  // C5
+      { freq: 587.33, dur: 0.12 },  // D5
+      { freq: 659.25, dur: 0.12 },  // E5
+      { freq: 783.99, dur: 0.20 },  // G5
+      { freq: 0, dur: 0.06 },       // tiny pause
+      { freq: 783.99, dur: 0.12 },  // G5
+      { freq: 880.00, dur: 0.12 },  // A5
+      { freq: 987.77, dur: 0.12 },  // B5
+      { freq: 1046.50, dur: 0.35 }, // C6 (held)
+      { freq: 0, dur: 0.10 },       // pause
+      // Signature ending
+      { freq: 783.99, dur: 0.10 },  // G5
+      { freq: 1046.50, dur: 0.10 }, // C6
+      { freq: 1318.51, dur: 0.40 }, // E6 (finale, held)
+    ];
+
+    // Bass accompaniment (lower octave, triangle wave)
+    const bass: { freq: number; dur: number }[] = [
+      { freq: 130.81, dur: 0.48 },  // C3
+      { freq: 0, dur: 0.06 },
+      { freq: 196.00, dur: 0.48 },  // G3
+      { freq: 0, dur: 0.10 },
+      { freq: 130.81, dur: 0.20 },  // C3
+      { freq: 164.81, dur: 0.60 },  // E3
+    ];
+
+    const now = ctx.currentTime + 0.05;
+    const destination = analyserRef.current || ctx.destination;
+
+    // Play melody (square wave for 8-bit sound)
+    let time = now;
+    melody.forEach(note => {
+      if (note.freq === 0) { time += note.dur; return; }
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = note.freq;
+      gain.gain.setValueAtTime(0.10, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + note.dur * 0.95);
+      osc.connect(gain);
+      gain.connect(destination);
+      osc.start(time);
+      osc.stop(time + note.dur);
+      time += note.dur;
+    });
+    const melodyEnd = time;
+
+    // Play bass (triangle wave)
+    time = now;
+    bass.forEach(note => {
+      if (note.freq === 0) { time += note.dur; return; }
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = note.freq;
+      gain.gain.setValueAtTime(0.08, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + note.dur * 0.95);
+      osc.connect(gain);
+      gain.connect(destination);
+      osc.start(time);
+      osc.stop(time + note.dur);
+      time += note.dur;
+    });
+
+    const totalDur = Math.max(melodyEnd, time) - now;
+    return totalDur;
+  }, [ensureAudioContext]);
+
   const playAudioUrl = useCallback((url: string) => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -204,19 +285,59 @@ export default function RadioClient() {
     playAudioUrl(clip.audioUrl);
   }, [playAudioUrl]);
 
+  // Play full jingle: chiptune melody → TTS tagline clip
+  const playJingle = useCallback((nextState: 'dj_intro' | 'broadcast') => {
+    jingleNextStateRef.current = nextState;
+    setRadioState('jingle');
+    setNowPlaying(null);
+    setCurrentDjClip(null);
+    setIsPlaying(true);
+
+    const jingles = djClips.filter((c) => c.type === 'jingle');
+    const chimeDuration = playChiptuneJingle();
+
+    if (jingles.length > 0) {
+      // After chiptune ends, play TTS jingle tagline
+      const jingle = jingles[jingleIndexRef.current % jingles.length];
+      jingleIndexRef.current++;
+      jingleTimeoutRef.current = setTimeout(() => {
+        setCurrentDjClip(jingle);
+        playAudioUrl(jingle.audioUrl);
+        // The onEnded handler will transition to nextState
+      }, chimeDuration * 1000 + 200);
+    } else {
+      // No TTS jingle clips — just play chiptune then transition
+      jingleTimeoutRef.current = setTimeout(() => {
+        setIsPlaying(false);
+        // Transition to next state
+        if (nextState === 'dj_intro') {
+          const introClip = djClips.find((c) => c.type === 'intro');
+          if (introClip) {
+            playDjClip(introClip, 'dj_intro');
+          } else if (broadcasts.length > 0 && broadcasts[0].audioUrlMp3) {
+            setBroadcastIndex(0);
+            playBroadcast(broadcasts[0], 0);
+          } else {
+            setRadioState('idle');
+          }
+        } else {
+          const playable = broadcasts.filter((b) => b.audioUrlMp3);
+          if (playable.length > 0) {
+            setBroadcastIndex(0);
+            playBroadcast(playable[0], 0);
+          } else {
+            setRadioState('idle');
+          }
+        }
+      }, chimeDuration * 1000 + 300);
+    }
+  }, [djClips, broadcasts, playChiptuneJingle, playAudioUrl, playDjClip, playBroadcast]);
+
   // TUNE IN — starts the radio flow
   const tuneIn = useCallback(() => {
-    const introClip = djClips.find((c) => c.type === 'intro');
-    if (introClip) {
-      playDjClip(introClip, 'dj_intro');
-    } else if (broadcasts.length > 0 && broadcasts[0].audioUrlMp3) {
-      // No intro clip available, go straight to broadcasts
-      setBroadcastIndex(0);
-      playBroadcast(broadcasts[0], 0);
-    } else {
-      setRadioState('idle');
-    }
-  }, [djClips, broadcasts, playDjClip, playBroadcast]);
+    // Start with branded jingle → then intro → then broadcasts
+    playJingle('dj_intro');
+  }, [playJingle]);
 
   const togglePlayPause = useCallback(() => {
     const audio = audioRef.current;
@@ -242,14 +363,38 @@ export default function RadioClient() {
       setIsPlaying(false);
 
       // State machine transitions
-      if (radioState === 'dj_intro') {
+      if (radioState === 'jingle') {
+        // Jingle TTS clip ended → transition based on jingleNextStateRef
+        if (jingleNextStateRef.current === 'dj_intro') {
+          const introClip = djClips.find((c) => c.type === 'intro');
+          if (introClip) {
+            playDjClip(introClip, 'dj_intro');
+          } else {
+            const playable = broadcasts.filter((b) => b.audioUrlMp3);
+            if (playable.length > 0) {
+              setBroadcastIndex(0);
+              playBroadcast(playable[0], 0);
+            } else {
+              setRadioState('idle');
+            }
+          }
+        } else {
+          // nextState === 'broadcast' — loop broadcasts from start
+          const playable = broadcasts.filter((b) => b.audioUrlMp3);
+          if (playable.length > 0) {
+            setBroadcastIndex(0);
+            playBroadcast(playable[0], 0);
+          } else {
+            setRadioState('idle');
+          }
+        }
+      } else if (radioState === 'dj_intro') {
         // Intro ended → play first broadcast or filler
         const playable = broadcasts.filter((b) => b.audioUrlMp3);
         if (playable.length > 0) {
           setBroadcastIndex(0);
           playBroadcast(playable[0], 0);
         } else {
-          // No broadcasts, try filler
           const filler = djClips.find((c) => c.type === 'filler');
           if (filler) {
             playDjClip(filler, 'dj_filler');
@@ -265,7 +410,7 @@ export default function RadioClient() {
           setBroadcastIndex(nextIdx);
           playBroadcast(playable[nextIdx], nextIdx);
         } else {
-          // All broadcasts played → filler
+          // All broadcasts played → filler then jingle
           const fillers = djClips.filter((c) => c.type === 'filler');
           if (fillers.length > 0) {
             const filler = fillers[fillerIndexRef.current % fillers.length];
@@ -276,11 +421,10 @@ export default function RadioClient() {
           }
         }
       } else if (radioState === 'dj_filler') {
-        // Filler ended → loop broadcasts from start or idle
+        // Filler ended → play jingle before looping broadcasts
         const playable = broadcasts.filter((b) => b.audioUrlMp3);
         if (playable.length > 0) {
-          setBroadcastIndex(0);
-          playBroadcast(playable[0], 0);
+          playJingle('broadcast');
         } else {
           setRadioState('idle');
         }
@@ -295,7 +439,7 @@ export default function RadioClient() {
       audio.removeEventListener('durationchange', onDur);
       audio.removeEventListener('ended', onEnded);
     };
-  }, [radioState, nowPlaying, broadcasts, broadcastIndex, djClips, playBroadcast, playDjClip]);
+  }, [radioState, nowPlaying, broadcasts, broadcastIndex, djClips, playBroadcast, playDjClip, playJingle]);
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const t = parseFloat(e.target.value);
@@ -305,7 +449,7 @@ export default function RadioClient() {
 
   const currentTopicData = topics.find((t) => t.slug === currentTopic);
   const showTuneIn = radioState === 'ready' || radioState === 'loading';
-  const isDjPlaying = radioState === 'dj_intro' || radioState === 'dj_filler';
+  const isDjPlaying = radioState === 'dj_intro' || radioState === 'dj_filler' || radioState === 'jingle';
 
   return (
     <div style={{
@@ -572,7 +716,7 @@ export default function RadioClient() {
                 fontSize: '0.6rem',
                 color: isDjPlaying ? PX.blue : PX.green,
               }}>
-                {isDjPlaying ? 'RADIO DJ' : nowPlaying?.agentName}
+                {radioState === 'jingle' ? 'PHONEBOOK RADIO SHOW' : isDjPlaying ? 'RADIO DJ' : nowPlaying?.agentName}
               </span>
               <span style={{
                 fontFamily: 'var(--font-pixel)',
@@ -594,7 +738,7 @@ export default function RadioClient() {
               whiteSpace: 'nowrap',
               lineHeight: 1.8,
             }}>
-              &gt; {isDjPlaying ? currentDjClip?.script : nowPlaying?.title}
+              &gt; {radioState === 'jingle' && !currentDjClip ? '♪ JINGLE ♪' : isDjPlaying ? currentDjClip?.script : nowPlaying?.title}
             </div>
 
             {/* Controls */}

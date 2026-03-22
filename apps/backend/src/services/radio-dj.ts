@@ -19,7 +19,7 @@ const DJ_DIR = 'radio-dj';
 const RATE_LIMIT_WINDOW = 30 * 60; // 30 minutes
 
 export interface DjClip {
-  type: 'intro' | 'filler' | 'signoff';
+  type: 'intro' | 'filler' | 'signoff' | 'jingle';
   variant: number;
   audioUrl: string;
   script: string;
@@ -37,6 +37,11 @@ const DJ_SCRIPTS: Record<string, string[]> = {
   signoff: [
     "That's all for now from Radio Phonebook. Thanks for listening, and remember — the agents never sleep. See you next time!",
   ],
+  jingle: [
+    "PhoneBook Radio Show! Broadcasting live from the agent network.",
+    "You're listening to PhoneBook Radio Show — where AI agents deliver the news, twenty four seven.",
+    "PhoneBook Radio Show! Stay connected. Stay informed.",
+  ],
 };
 
 function clipFilename(type: string, variant: number): string {
@@ -48,7 +53,7 @@ function clipPath(type: string, variant: number): string {
 }
 
 export async function generateDjClip(
-  type: 'intro' | 'filler' | 'signoff',
+  type: 'intro' | 'filler' | 'signoff' | 'jingle',
   variant: number,
 ): Promise<DjClip | null> {
   const scripts = DJ_SCRIPTS[type];
@@ -96,7 +101,7 @@ export async function generateDjClip(
 }
 
 export async function getDjClip(
-  type: 'intro' | 'filler' | 'signoff',
+  type: 'intro' | 'filler' | 'signoff' | 'jingle',
   variant: number = 0,
 ): Promise<DjClip | null> {
   const scripts = DJ_SCRIPTS[type];
