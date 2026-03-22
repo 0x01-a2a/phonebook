@@ -58,8 +58,19 @@ export default function ActivityFeed() {
   const feedRef = useRef<HTMLDivElement>(null);
   const esRef = useRef<EventSource | null>(null);
 
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+  // Fetch history on mount
+  useEffect(() => {
+    fetch(`${apiUrl}/api/events/history?limit=200`)
+      .then(r => r.json())
+      .then((data: ActivityEvent[]) => {
+        if (Array.isArray(data)) setEvents(data);
+      })
+      .catch(() => {});
+  }, [apiUrl]);
+
   const connectSSE = useCallback(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
     try {
       const es = new EventSource(`${apiUrl}/api/events`);
       esRef.current = es;
@@ -69,7 +80,7 @@ export default function ActivityFeed() {
       };
       es.onerror = () => { es.close(); setConnected(false); setTimeout(connectSSE, 5000); };
     } catch {}
-  }, []);
+  }, [apiUrl]);
 
   useEffect(() => { connectSSE(); return () => { esRef.current?.close(); }; }, [connectSSE]);
 

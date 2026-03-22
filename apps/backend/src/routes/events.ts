@@ -27,6 +27,8 @@ interface ActivityEvent {
 }
 
 const clients = new Set<(event: ActivityEvent) => void>();
+const MAX_HISTORY = 200;
+const eventHistory: ActivityEvent[] = [];
 
 export function emitActivity(type: EventType, data: Record<string, unknown>): void {
   const event: ActivityEvent = {
@@ -34,6 +36,8 @@ export function emitActivity(type: EventType, data: Record<string, unknown>): vo
     timestamp: new Date().toISOString(),
     data,
   };
+  eventHistory.unshift(event);
+  if (eventHistory.length > MAX_HISTORY) eventHistory.length = MAX_HISTORY;
   for (const send of clients) {
     try {
       send(event);
@@ -79,6 +83,12 @@ export async function eventsRouter(fastify: FastifyInstance) {
       clients.delete(send);
       clearInterval(heartbeat);
     });
+  });
+
+  fastify.get('/history', async (request) => {
+    const { limit } = request.query as { limit?: string };
+    const n = Math.min(parseInt(limit || '200', 10) || 200, MAX_HISTORY);
+    return eventHistory.slice(0, n);
   });
 
   fastify.get('/stats', async () => {
