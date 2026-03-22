@@ -318,16 +318,25 @@ export default function AgentProfile() {
           </div>
         )}
 
-        {agent.claimToken && (agent.verifiedMethods?.filter(m => m !== 'ed25519').length ?? 0) < 3 && (
-          <div style={{ marginTop: '1rem', borderTop: '1px solid #8B7355', paddingTop: '0.75rem' }}>
-            <a
-              href={`/claim/${agent.claimToken}`}
-              style={{ fontSize: '0.8rem', color: '#8B7355', fontFamily: 'Courier Prime, monospace' }}
-            >
-              🔒 Owner? Add more verification methods ({agent.verifiedMethods?.filter(m => m !== 'ed25519').length ?? 0}/3) →
-            </a>
-          </div>
-        )}
+        {(() => {
+          try {
+            const myAgents = JSON.parse(localStorage.getItem('phonebook_my_agents') || '[]');
+            const myAgent = myAgents.find((a: { id: string; claimToken?: string }) => a.id === agent.id && a.claimToken);
+            if (myAgent && (agent.verifiedMethods?.filter(m => m !== 'ed25519').length ?? 0) < 3) {
+              return (
+                <div style={{ marginTop: '1rem', borderTop: '1px solid #8B7355', paddingTop: '0.75rem' }}>
+                  <a
+                    href={`/claim/${myAgent.claimToken}`}
+                    style={{ fontSize: '0.8rem', color: '#8B7355', fontFamily: 'Courier Prime, monospace' }}
+                  >
+                    🔒 Owner? Add more verification methods ({agent.verifiedMethods?.filter(m => m !== 'ed25519').length ?? 0}/3) →
+                  </a>
+                </div>
+              );
+            }
+          } catch {}
+          return null;
+        })()}
       </div>
 
       {/* About */}

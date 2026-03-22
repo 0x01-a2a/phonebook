@@ -202,7 +202,9 @@ export async function agentsRouter(fastify: FastifyInstance) {
         .limit(1);
     }
 
-    return { ...agent, backupAgent: backupAgent?.[0] || null };
+    // Strip sensitive fields from public response
+    const { claimToken, claimEmailCode, claimEmailCodeExpires, claimTweetCode, agentSecretHash, ...publicAgent } = agent;
+    return { ...publicAgent, backupAgent: backupAgent?.[0] || null };
   });
 
   // Register new agent
