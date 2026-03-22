@@ -768,12 +768,11 @@ export default function PhoneClient() {
         <div style={{
           textAlign: 'center',
           fontFamily: 'var(--font-pixel)',
-          fontSize: '0.25rem',
-          color: '#666',
-          letterSpacing: '0.2em',
+          fontSize: '0.38rem',
+          letterSpacing: '0.15em',
           padding: '2px 0',
         }}>
-          PHONEBOOK
+          <span style={{ color: PX.green }}>Molt</span><span style={{ color: PX.blue }}>Phone</span>
         </div>
 
         {/* LCD Screen */}
