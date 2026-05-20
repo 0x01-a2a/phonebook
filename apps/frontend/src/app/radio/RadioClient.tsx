@@ -97,6 +97,44 @@ export default function RadioClient() {
   const [currentMusicTrack, setCurrentMusicTrack] = useState<MusicTrack | null>(null);
   const musicIndexRef = useRef(0);
 
+  // Stations + favorites
+  const [currentStation, setCurrentStation] = useState<string>('mix');
+  const [favoriteTracks, setFavoriteTracks] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem('phonebook_favorite_tracks');
+      if (raw) setFavoriteTracks(new Set(JSON.parse(raw) as string[]));
+    } catch {}
+  }, []);
+
+  const toggleFavorite = useCallback((trackId: string) => {
+    setFavoriteTracks((prev) => {
+      const next = new Set(prev);
+      if (next.has(trackId)) next.delete(trackId);
+      else next.add(trackId);
+      try {
+        localStorage.setItem('phonebook_favorite_tracks', JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  // Filter music tracks by selected station
+  const filteredMusicTracks = (() => {
+    if (currentStation === 'mix' || currentStation === 'news') return musicTracks;
+    if (currentStation === 'favorites') return musicTracks.filter((t) => favoriteTracks.has(t.id));
+    const genreMap: Record<string, string[]> = {
+      synthwave: ['synthwave', 'cyberpunk'],
+      lofi: ['lo-fi hip hop', 'lo-fi', 'lofi'],
+      ambient: ['ambient', 'cinematic'],
+      chiptune: ['chiptune', '8-bit'],
+    };
+    const wanted = genreMap[currentStation] || [currentStation];
+    return musicTracks.filter((t) => t.genre && wanted.some((w) => t.genre!.toLowerCase().includes(w)));
+  })();
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -445,8 +483,10 @@ export default function RadioClient() {
         const nextIdx = broadcastIndex + 1;
 
         // 60% chance to play music between broadcasts (if music available)
-        if (musicTracks.length > 0 && Math.random() < 0.6) {
-          const track = musicTracks[musicIndexRef.current % musicTracks.length];
+        // Station 'news' = broadcasts only. Other stations = mostly music
+        const musicProbability = currentStation === 'news' ? 0 : currentStation === 'mix' ? 0.6 : 0.85;
+        if (filteredMusicTracks.length > 0 && Math.random() < musicProbability) {
+          const track = filteredMusicTracks[musicIndexRef.current % filteredMusicTracks.length];
           musicIndexRef.current++;
           playMusicTrack(track);
         } else if (nextIdx < playable.length) {
@@ -499,7 +539,7 @@ export default function RadioClient() {
       audio.removeEventListener('durationchange', onDur);
       audio.removeEventListener('ended', onEnded);
     };
-  }, [radioState, nowPlaying, broadcasts, broadcastIndex, djClips, musicTracks, playBroadcast, playDjClip, playJingle, playMusicTrack]);
+  }, [radioState, nowPlaying, broadcasts, broadcastIndex, djClips, musicTracks, filteredMusicTracks, currentStation, playBroadcast, playDjClip, playJingle, playMusicTrack]);
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const t = parseFloat(e.target.value);
@@ -584,6 +624,86 @@ export default function RadioClient() {
         }}>
           [{connected ? 'LIVE' : 'OFFLINE'}]
         </span>
+      </div>
+
+      {/* STATIONS BAR — main feature */}
+      <div style={{
+        padding: '0.8rem 0.75rem 0.5rem',
+        borderBottom: `2px solid ${PX.border}`,
+        background: 'linear-gradient(180deg, rgba(0,102,255,0.06) 0%, transparent 100%)',
+      }}>
+        <div style={{
+          fontFamily: 'var(--font-pixel)',
+          fontSize: '0.4rem',
+          color: PX.grayLight,
+          textAlign: 'center',
+          letterSpacing: '0.2em',
+          marginBottom: 8,
+        }}>
+          // STATIONS //
+        </div>
+        <div style={{
+          display: 'flex',
+          gap: '0.5rem',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+        }}>
+          {[
+            { slug: 'mix', label: 'PHONEBOOK MIX', icon: '🎙', color: PX.green },
+            { slug: 'news', label: 'NEWS', icon: '📣', color: PX.blue },
+            { slug: 'synthwave', label: 'SYNTHWAVE', icon: '🌆', color: '#FF00AA' },
+            { slug: 'lofi', label: 'LO-FI LOUNGE', icon: '🌙', color: '#FFD700' },
+            { slug: 'ambient', label: 'AMBIENT', icon: '🌌', color: '#00CCFF' },
+            { slug: 'favorites', label: '♥ FAVORITES', icon: '', color: PX.red },
+          ].map((s) => {
+            const active = currentStation === s.slug;
+            const count =
+              s.slug === 'mix' ? musicTracks.length + broadcasts.length :
+              s.slug === 'news' ? broadcasts.length :
+              s.slug === 'favorites' ? favoriteTracks.size :
+              musicTracks.filter((t) => {
+                if (!t.genre) return false;
+                const g = t.genre.toLowerCase();
+                if (s.slug === 'synthwave') return g.includes('synthwave') || g.includes('cyberpunk');
+                if (s.slug === 'lofi') return g.includes('lo-fi') || g.includes('lofi');
+                if (s.slug === 'ambient') return g.includes('ambient') || g.includes('cinematic');
+                return false;
+              }).length;
+            return (
+              <button
+                key={s.slug}
+                onClick={() => { setCurrentStation(s.slug); musicIndexRef.current = 0; }}
+                style={{
+                  fontFamily: 'var(--font-pixel)',
+                  fontSize: '0.42rem',
+                  padding: '8px 12px',
+                  background: active ? s.color : PX.bg,
+                  color: active ? PX.black : s.color,
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  lineHeight: 1.6,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  ...pixelBorder(s.color, 2),
+                  boxShadow: active ? `4px 4px 0 ${s.color}` : `2px 2px 0 ${s.color}`,
+                  transform: active ? 'translate(-1px,-1px)' : 'none',
+                  transition: 'all 80ms',
+                }}
+              >
+                {s.icon && <span style={{ fontSize: '0.7rem' }}>{s.icon}</span>}
+                <span>{s.label}</span>
+                <span style={{
+                  fontSize: '0.32rem',
+                  padding: '1px 4px',
+                  background: active ? PX.black : s.color,
+                  color: active ? s.color : PX.black,
+                }}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* TOPIC TABS */}
@@ -863,16 +983,121 @@ export default function RadioClient() {
 
       {/* BROADCAST LIST */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 1rem' }}>
+        {/* MUSIC LIBRARY (separate section) */}
+        {musicTracks.length > 0 && (
+          <>
+            <div style={{
+              fontFamily: 'var(--font-pixel)',
+              fontSize: '0.4rem',
+              color: PX.grayLight,
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              padding: '0.7rem 0 0.3rem',
+              borderBottom: `2px solid ${PX.border}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <span>♪ MUSIC LIBRARY ({filteredMusicTracks.length}/{musicTracks.length})</span>
+              <a href="/subscribe" style={{
+                fontSize: '0.35rem',
+                color: PX.blue,
+                textDecoration: 'none',
+                padding: '2px 6px',
+                ...pixelBorder(PX.blue, 1),
+              }}>+ ADD</a>
+            </div>
+            {filteredMusicTracks.length === 0 && (
+              <div style={{
+                fontFamily: 'var(--font-pixel)',
+                fontSize: '0.4rem',
+                color: PX.grayLight,
+                textAlign: 'center',
+                padding: '1rem 0',
+              }}>
+                {currentStation === 'favorites'
+                  ? '♥ no favorites yet — click hearts to save tracks'
+                  : 'no tracks in this station yet'}
+              </div>
+            )}
+            {filteredMusicTracks.map((t) => {
+              const isActive = currentMusicTrack?.id === t.id;
+              const isFav = favoriteTracks.has(t.id);
+              return (
+                <div key={t.id} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 4px',
+                  borderBottom: `1px solid ${PX.border}40`,
+                  background: isActive ? `${PX.green}22` : 'transparent',
+                }}>
+                  <button
+                    onClick={() => playMusicTrack(t)}
+                    style={{
+                      fontFamily: 'var(--font-pixel)',
+                      fontSize: '0.5rem',
+                      padding: '4px 8px',
+                      background: isActive ? PX.green : 'transparent',
+                      color: isActive ? PX.black : PX.green,
+                      cursor: 'pointer',
+                      ...pixelBorder(PX.green, 2),
+                    }}
+                  >
+                    {isActive && isPlaying ? '||' : '>'}
+                  </button>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontFamily: 'var(--font-pixel)',
+                      fontSize: '0.42rem',
+                      color: PX.black,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {t.title}
+                    </div>
+                    <div style={{
+                      fontFamily: 'var(--font-pixel)',
+                      fontSize: '0.32rem',
+                      color: PX.grayLight,
+                      marginTop: 2,
+                    }}>
+                      [{t.genre?.toUpperCase() || 'MUSIC'}]
+                      {t.durationSec && ` · ${formatDuration(t.durationSec)}`}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => toggleFavorite(t.id)}
+                    aria-label={isFav ? 'unfavorite' : 'favorite'}
+                    style={{
+                      fontSize: '0.9rem',
+                      lineHeight: 1,
+                      padding: '4px 8px',
+                      background: 'transparent',
+                      color: isFav ? PX.red : PX.grayLight,
+                      cursor: 'pointer',
+                      border: 'none',
+                    }}
+                  >
+                    {isFav ? '♥' : '♡'}
+                  </button>
+                </div>
+              );
+            })}
+          </>
+        )}
+
         <div style={{
           fontFamily: 'var(--font-pixel)',
           fontSize: '0.4rem',
           color: PX.grayLight,
           textTransform: 'uppercase',
           letterSpacing: '0.1em',
-          padding: '0.5rem 0',
+          padding: '0.7rem 0 0.3rem',
           borderBottom: `2px solid ${PX.border}`,
         }}>
-          RECENT BROADCASTS
+          📣 RECENT BROADCASTS
         </div>
 
         {broadcasts.length === 0 && (
