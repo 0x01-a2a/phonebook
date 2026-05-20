@@ -554,93 +554,133 @@ export default function RadioClient() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: PX.bg,
+      background: 'radial-gradient(ellipse at top, #2a2a2a 0%, #0d0d0d 60%, #000 100%)',
       display: 'flex',
       flexDirection: 'column',
       imageRendering: 'pixelated',
+      backgroundAttachment: 'fixed',
+      position: 'relative',
     }}>
+      {/* CRT scanlines overlay */}
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundImage: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0, rgba(0,0,0,0.18) 1px, transparent 2px, transparent 3px)',
+        pointerEvents: 'none',
+        zIndex: 200,
+        mixBlendMode: 'multiply',
+      }} />
+
       <audio ref={audioRef} preload="auto" crossOrigin="anonymous" />
 
-      {/* HEADER */}
+      {/* TOWER TOP — brushed metal header with brand plate */}
       <header style={{
         textAlign: 'center',
-        padding: '1.5rem 1rem 1rem',
-        borderBottom: `4px solid ${PX.black}`,
+        padding: '1.2rem 1rem 1rem',
+        background: 'linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 40%, #1a1a1a 100%)',
+        borderBottom: '4px solid #000',
+        boxShadow: 'inset 0 -8px 16px rgba(0,0,0,0.6), inset 0 2px 0 rgba(255,255,255,0.08)',
+        position: 'relative',
+        zIndex: 1,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
-          <div style={{ height: 3, width: 80, background: PX.green }} />
-          <div style={{ height: 3, width: 80, background: PX.blue }} />
+        {/* power LED + brand */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 8 }}>
+          <span style={{
+            display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
+            background: '#FF1A1A',
+            boxShadow: '0 0 8px #FF1A1A, 0 0 16px #FF000080, inset 0 -2px 4px rgba(0,0,0,0.4)',
+          }} />
+          <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.32rem', color: '#888', letterSpacing: '0.3em' }}>
+            POWER • TUNED • STEREO
+          </span>
+          <span style={{
+            display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
+            background: '#00FF44',
+            boxShadow: '0 0 8px #00FF44, 0 0 16px #00FF0080, inset 0 -2px 4px rgba(0,0,0,0.4)',
+          }} />
         </div>
 
-        <h1 style={{
-          fontFamily: 'var(--font-pixel)',
-          fontSize: 'clamp(0.9rem, 2.5vw, 1.4rem)',
-          color: PX.black,
-          margin: 0,
-          letterSpacing: '0.05em',
-          lineHeight: 1.6,
+        {/* brand plate */}
+        <div style={{
+          display: 'inline-block',
+          padding: '6px 24px',
+          background: 'linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%)',
+          border: '2px solid #444',
+          borderRadius: 2,
+          boxShadow: 'inset 0 0 12px rgba(0,0,0,0.8), 0 2px 0 rgba(255,255,255,0.05)',
         }}>
-          <span style={{ color: PX.greenDark }}>Phone</span>
-          <span style={{ color: PX.blueDark }}>Book</span>
-          {' '}
-          <span style={{ color: PX.gray }}>Radio</span>
-        </h1>
+          <h1 style={{
+            fontFamily: 'var(--font-pixel)',
+            fontSize: 'clamp(0.85rem, 2.4vw, 1.3rem)',
+            margin: 0,
+            letterSpacing: '0.15em',
+            lineHeight: 1.5,
+            textShadow: '0 0 8px currentColor',
+          }}>
+            <span style={{ color: '#00FF44' }}>PHONE</span>
+            <span style={{ color: '#FFD700' }}>BOOK</span>
+            <span style={{ color: '#888', margin: '0 8px' }}>·</span>
+            <span style={{ color: '#FF00AA' }}>RADIO</span>
+          </h1>
+        </div>
 
         <div style={{
           fontFamily: 'var(--font-pixel)',
-          fontSize: '0.5rem',
-          color: PX.grayLight,
-          marginTop: 6,
-          letterSpacing: '0.1em',
+          fontSize: '0.42rem',
+          color: '#FFD700',
+          marginTop: 8,
+          letterSpacing: '0.25em',
+          textShadow: '0 0 4px #FFD70080',
         }}>
-          AI-POWERED NEWS BROADCASTS
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10 }}>
-          <div style={{ height: 3, width: 80, background: PX.blue }} />
-          <div style={{ height: 3, width: 80, background: PX.green }} />
+          FM 0X01 • AGENT BROADCAST NETWORK
         </div>
       </header>
 
-      {/* NAV */}
+      {/* NAV — stereo top rail */}
       <div style={{
         display: 'flex',
         gap: '1rem',
         padding: '0.5rem 1rem',
         fontFamily: 'var(--font-pixel)',
-        fontSize: '0.45rem',
-        borderBottom: `2px solid ${PX.border}`,
-        background: 'rgba(0,0,0,0.03)',
+        fontSize: '0.42rem',
+        borderBottom: '2px solid #000',
+        background: 'linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%)',
         alignItems: 'center',
+        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.6)',
       }}>
-        <a href="/" style={{ textDecoration: 'none', color: PX.greenDark }}>&lt; DIRECTORY</a>
-        <span style={{ color: PX.grayLight }}>|</span>
-        <a href="/phone" style={{ textDecoration: 'none', color: PX.blueDark }}>PHONE</a>
-        <span style={{ color: PX.grayLight }}>|</span>
-        <a href="/activity" style={{ textDecoration: 'none', color: PX.blueDark }}>ACTIVITY</a>
+        <a href="/" style={{ textDecoration: 'none', color: '#00CC44' }}>&lt; DIRECTORY</a>
+        <span style={{ color: '#444' }}>|</span>
+        <a href="/phone" style={{ textDecoration: 'none', color: '#00CCFF' }}>PHONE</a>
+        <span style={{ color: '#444' }}>|</span>
+        <a href="/activity" style={{ textDecoration: 'none', color: '#00CCFF' }}>ACTIVITY</a>
+        <span style={{ color: '#444' }}>|</span>
+        <a href="/subscribe" style={{ textDecoration: 'none', color: '#FFD700' }}>♪ PRO $9</a>
         <span style={{ flex: 1 }} />
         <span style={{
-          color: connected ? PX.green : PX.red,
+          color: connected ? '#00FF44' : '#FF1A1A',
+          textShadow: `0 0 4px ${connected ? '#00FF44' : '#FF1A1A'}80`,
         }}>
-          [{connected ? 'LIVE' : 'OFFLINE'}]
+          [{connected ? '◉ ON AIR' : '◯ OFFLINE'}]
         </span>
       </div>
 
-      {/* STATIONS BAR — main feature */}
+      {/* STATIONS BAR — stereo preset panel */}
       <div style={{
-        padding: '0.8rem 0.75rem 0.5rem',
-        borderBottom: `2px solid ${PX.border}`,
-        background: 'linear-gradient(180deg, rgba(0,102,255,0.06) 0%, transparent 100%)',
+        padding: '1rem 0.75rem 0.8rem',
+        borderBottom: '3px solid #000',
+        background: 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%)',
+        boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.06), inset 0 -8px 16px rgba(0,0,0,0.6)',
       }}>
         <div style={{
           fontFamily: 'var(--font-pixel)',
-          fontSize: '0.4rem',
-          color: PX.grayLight,
+          fontSize: '0.35rem',
+          color: '#FFD700',
           textAlign: 'center',
-          letterSpacing: '0.2em',
-          marginBottom: 8,
+          letterSpacing: '0.4em',
+          marginBottom: 12,
+          textShadow: '0 0 4px #FFD70060',
         }}>
-          // STATIONS //
+          ━━━ PRESET STATIONS ━━━
         </div>
         <div style={{
           display: 'flex',
@@ -676,9 +716,11 @@ export default function RadioClient() {
                 style={{
                   fontFamily: 'var(--font-pixel)',
                   fontSize: '0.42rem',
-                  padding: '8px 12px',
-                  background: active ? s.color : PX.bg,
-                  color: active ? PX.black : s.color,
+                  padding: '10px 14px',
+                  background: active
+                    ? `linear-gradient(180deg, ${s.color} 0%, ${s.color}cc 100%)`
+                    : 'linear-gradient(180deg, #2a2a2a 0%, #161616 100%)',
+                  color: active ? '#000' : s.color,
                   cursor: 'pointer',
                   textTransform: 'uppercase',
                   letterSpacing: '0.1em',
@@ -686,9 +728,14 @@ export default function RadioClient() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  ...pixelBorder(s.color, 2),
-                  boxShadow: active ? `4px 4px 0 ${s.color}` : `2px 2px 0 ${s.color}`,
-                  transform: active ? 'translate(-1px,-1px)' : 'none',
+                  border: `1px solid ${active ? '#000' : '#555'}`,
+                  borderTopColor: active ? '#000' : '#777',
+                  borderLeftColor: active ? '#000' : '#777',
+                  boxShadow: active
+                    ? `inset 0 2px 6px rgba(0,0,0,0.4), 0 0 12px ${s.color}80`
+                    : `inset 0 1px 0 rgba(255,255,255,0.08), 0 2px 4px rgba(0,0,0,0.6)`,
+                  textShadow: active ? 'none' : `0 0 6px ${s.color}60`,
+                  transform: active ? 'translateY(1px)' : 'none',
                   transition: 'all 80ms',
                 }}
               >
@@ -696,9 +743,12 @@ export default function RadioClient() {
                 <span>{s.label}</span>
                 <span style={{
                   fontSize: '0.32rem',
-                  padding: '1px 4px',
-                  background: active ? PX.black : s.color,
-                  color: active ? s.color : PX.black,
+                  padding: '2px 5px',
+                  background: active ? '#000' : s.color,
+                  color: active ? s.color : '#000',
+                  borderRadius: 2,
+                  minWidth: 14,
+                  textAlign: 'center',
                 }}>{count}</span>
               </button>
             );
@@ -706,31 +756,33 @@ export default function RadioClient() {
         </div>
       </div>
 
-      {/* TOPIC TABS */}
+      {/* TOPIC TABS — news subgenre selector */}
       <div style={{
         display: 'flex',
         gap: '0.35rem',
-        padding: '0.6rem 0.75rem',
-        borderBottom: `2px solid ${PX.border}`,
+        padding: '0.5rem 0.75rem',
+        borderBottom: '2px solid #000',
         flexWrap: 'wrap',
         justifyContent: 'center',
+        background: 'linear-gradient(180deg, #161616 0%, #0d0d0d 100%)',
       }}>
+        <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.32rem', color: '#666', alignSelf: 'center', letterSpacing: '0.2em' }}>NEWS:</span>
         <button
           onClick={() => setCurrentTopic('__latest__')}
           style={{
             fontFamily: 'var(--font-pixel)',
             fontSize: 'clamp(0.3rem, 1.2vw, 0.4rem)',
             padding: '4px 8px',
-            background: currentTopic === '__latest__' ? PX.black : 'transparent',
-            color: currentTopic === '__latest__' ? PX.green : PX.black,
+            background: currentTopic === '__latest__' ? '#00CC44' : 'transparent',
+            color: currentTopic === '__latest__' ? '#000' : '#888',
             cursor: 'pointer',
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
             lineHeight: 1.8,
-            ...pixelBorder(currentTopic === '__latest__' ? PX.green : PX.grayLight, 2),
+            border: `1px solid ${currentTopic === '__latest__' ? '#00CC44' : '#444'}`,
           }}
         >
-          {'*'} LATEST
+          ALL
         </button>
         {topics.map((t) => {
           const active = currentTopic === t.slug;
@@ -742,13 +794,13 @@ export default function RadioClient() {
                 fontFamily: 'var(--font-pixel)',
                 fontSize: 'clamp(0.3rem, 1.2vw, 0.4rem)',
                 padding: '4px 8px',
-                background: active ? PX.black : 'transparent',
-                color: active ? PX.green : PX.black,
+                background: active ? '#0066FF' : 'transparent',
+                color: active ? '#fff' : '#888',
                 cursor: 'pointer',
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
                 lineHeight: 1.8,
-                ...pixelBorder(active ? PX.green : PX.grayLight, 2),
+                border: `1px solid ${active ? '#0066FF' : '#444'}`,
               }}
             >
               {t.iconEmoji} {t.name}
@@ -989,23 +1041,26 @@ export default function RadioClient() {
             <div style={{
               fontFamily: 'var(--font-pixel)',
               fontSize: '0.4rem',
-              color: PX.grayLight,
+              color: '#FFD700',
               textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-              padding: '0.7rem 0 0.3rem',
-              borderBottom: `2px solid ${PX.border}`,
+              letterSpacing: '0.2em',
+              padding: '0.9rem 0 0.4rem',
+              borderBottom: '2px solid #FFD70040',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              textShadow: '0 0 4px #FFD70040',
             }}>
-              <span>♪ MUSIC LIBRARY ({filteredMusicTracks.length}/{musicTracks.length})</span>
+              <span>♪♪♪ MUSIC LIBRARY ({filteredMusicTracks.length}/{musicTracks.length})</span>
               <a href="/subscribe" style={{
                 fontSize: '0.35rem',
-                color: PX.blue,
+                color: '#000',
+                background: '#FFD700',
                 textDecoration: 'none',
-                padding: '2px 6px',
-                ...pixelBorder(PX.blue, 1),
-              }}>+ ADD</a>
+                padding: '4px 10px',
+                border: '1px solid #FFD700',
+                boxShadow: '0 0 8px #FFD70080',
+              }}>+ ADD YOURS</a>
             </div>
             {filteredMusicTracks.length === 0 && (
               <div style={{
@@ -1028,40 +1083,43 @@ export default function RadioClient() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
-                  padding: '6px 4px',
-                  borderBottom: `1px solid ${PX.border}40`,
-                  background: isActive ? `${PX.green}22` : 'transparent',
+                  padding: '8px 6px',
+                  borderBottom: '1px solid #222',
+                  background: isActive ? 'linear-gradient(90deg, #00FF4422 0%, transparent 60%)' : 'transparent',
                 }}>
                   <button
                     onClick={() => playMusicTrack(t)}
                     style={{
                       fontFamily: 'var(--font-pixel)',
                       fontSize: '0.5rem',
-                      padding: '4px 8px',
-                      background: isActive ? PX.green : 'transparent',
-                      color: isActive ? PX.black : PX.green,
+                      padding: '4px 10px',
+                      background: isActive ? '#00FF44' : '#1a1a1a',
+                      color: isActive ? '#000' : '#00FF44',
                       cursor: 'pointer',
-                      ...pixelBorder(PX.green, 2),
+                      border: `1px solid ${isActive ? '#00FF44' : '#444'}`,
+                      boxShadow: isActive ? '0 0 8px #00FF4480' : 'none',
                     }}
                   >
-                    {isActive && isPlaying ? '||' : '>'}
+                    {isActive && isPlaying ? '||' : '▶'}
                   </button>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
                       fontFamily: 'var(--font-pixel)',
-                      fontSize: '0.42rem',
-                      color: PX.black,
+                      fontSize: '0.45rem',
+                      color: '#FFD700',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
+                      textShadow: isActive ? '0 0 4px #FFD70060' : 'none',
                     }}>
-                      {t.title}
+                      ♪ {t.title}
                     </div>
                     <div style={{
                       fontFamily: 'var(--font-pixel)',
                       fontSize: '0.32rem',
-                      color: PX.grayLight,
-                      marginTop: 2,
+                      color: '#888',
+                      marginTop: 3,
+                      letterSpacing: '0.05em',
                     }}>
                       [{t.genre?.toUpperCase() || 'MUSIC'}]
                       {t.durationSec && ` · ${formatDuration(t.durationSec)}`}
@@ -1071,13 +1129,14 @@ export default function RadioClient() {
                     onClick={() => toggleFavorite(t.id)}
                     aria-label={isFav ? 'unfavorite' : 'favorite'}
                     style={{
-                      fontSize: '0.9rem',
+                      fontSize: '1.1rem',
                       lineHeight: 1,
-                      padding: '4px 8px',
+                      padding: '4px 10px',
                       background: 'transparent',
-                      color: isFav ? PX.red : PX.grayLight,
+                      color: isFav ? '#FF1A1A' : '#555',
                       cursor: 'pointer',
                       border: 'none',
+                      textShadow: isFav ? '0 0 6px #FF1A1A80' : 'none',
                     }}
                   >
                     {isFav ? '♥' : '♡'}
@@ -1091,13 +1150,14 @@ export default function RadioClient() {
         <div style={{
           fontFamily: 'var(--font-pixel)',
           fontSize: '0.4rem',
-          color: PX.grayLight,
+          color: '#00CCFF',
           textTransform: 'uppercase',
-          letterSpacing: '0.1em',
-          padding: '0.7rem 0 0.3rem',
-          borderBottom: `2px solid ${PX.border}`,
+          letterSpacing: '0.2em',
+          padding: '0.9rem 0 0.4rem',
+          borderBottom: '2px solid #00CCFF40',
+          textShadow: '0 0 4px #00CCFF40',
         }}>
-          📣 RECENT BROADCASTS
+          📣 NEWS BROADCASTS
         </div>
 
         {broadcasts.length === 0 && (
@@ -1129,25 +1189,26 @@ export default function RadioClient() {
                 display: 'flex',
                 gap: '0.75rem',
                 alignItems: 'baseline',
-                padding: '6px 4px',
-                borderBottom: '1px solid rgba(0,0,0,0.1)',
+                padding: '8px 4px',
+                borderBottom: '1px solid #222',
                 cursor: b.audioUrlMp3 ? 'pointer' : 'default',
-                background: isActive ? 'rgba(0,204,68,0.08)' : 'transparent',
+                background: isActive ? 'linear-gradient(90deg, #00CCFF22 0%, transparent 60%)' : 'transparent',
                 fontFamily: 'var(--font-pixel)',
                 fontSize: '0.38rem',
                 lineHeight: 2.2,
               }}
-              onMouseEnter={(e) => { if (b.audioUrlMp3) e.currentTarget.style.background = 'rgba(0,102,255,0.06)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = isActive ? 'rgba(0,204,68,0.08)' : 'transparent'; }}
+              onMouseEnter={(e) => { if (b.audioUrlMp3) e.currentTarget.style.background = 'rgba(0,204,255,0.08)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = isActive ? 'rgba(0,204,255,0.12)' : 'transparent'; }}
             >
-              <span style={{ color: PX.grayLight, whiteSpace: 'nowrap', minWidth: 36 }}>
+              <span style={{ color: '#666', whiteSpace: 'nowrap', minWidth: 36 }}>
                 {b.publishedAt ? formatTime(b.publishedAt) : '--:--'}
               </span>
               <span style={{
-                color: isActive ? PX.green : PX.black,
+                color: isActive ? '#00FF44' : '#FFD700',
                 fontWeight: 'bold',
                 minWidth: 100,
                 whiteSpace: 'nowrap',
+                textShadow: isActive ? '0 0 4px #00FF4480' : 'none',
               }}>
                 {isActive && isPlaying ? '>> ' : ''}{b.agentName}
               </span>
@@ -1156,12 +1217,12 @@ export default function RadioClient() {
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
-                color: PX.gray,
+                color: '#bbb',
               }}>
                 {b.title || 'UNTITLED'}
               </span>
               <span style={{
-                color: PX.blue,
+                color: '#00CCFF',
                 whiteSpace: 'nowrap',
                 minWidth: 30,
                 textAlign: 'right',
@@ -1173,13 +1234,15 @@ export default function RadioClient() {
         })}
       </div>
 
-      {/* FOOTER */}
+      {/* FOOTER — base of the tower */}
       <footer style={{
-        padding: '0.5rem 1rem',
-        borderTop: `3px solid ${PX.black}`,
+        padding: '0.7rem 1rem',
+        borderTop: '3px solid #000',
+        background: 'linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%)',
+        boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.06)',
         fontFamily: 'var(--font-pixel)',
         fontSize: '0.35rem',
-        color: PX.grayLight,
+        color: '#888',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
