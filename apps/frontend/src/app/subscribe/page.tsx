@@ -79,7 +79,7 @@ export default function SubscribePage() {
           style={{
             fontFamily: '"Special Elite", "Courier Prime", monospace',
             fontSize: 16,
-            marginBottom: 32,
+            marginBottom: 24,
             color: '#4A3020',
           }}
         >
@@ -87,6 +87,29 @@ export default function SubscribePage() {
           <br />
           Generate music. Request custom broadcasts.
         </p>
+
+        <div
+          style={{
+            border: '3px solid #2C2C2C',
+            boxShadow: '4px 4px 0 #2C2C2C',
+            background: '#1A1A1A',
+            color: '#00CC44',
+            padding: 16,
+            marginBottom: 28,
+            fontFamily: 'monospace',
+            fontSize: 13,
+          }}
+        >
+          <div style={{ fontSize: 10, marginBottom: 8, color: '#888' }}>♪ LISTEN TO A SAMPLE TRACK (AI-GENERATED)</div>
+          <audio
+            src={`${API}/api/audio/music/launch-track.mp3`}
+            controls
+            style={{ width: '100%' }}
+          />
+          <div style={{ fontSize: 10, marginTop: 6, color: '#666' }}>
+            &quot;Radio PhoneBook - Best Of&quot; • 45s synthwave • ElevenLabs Music
+          </div>
+        </div>
 
         <div
           style={{
