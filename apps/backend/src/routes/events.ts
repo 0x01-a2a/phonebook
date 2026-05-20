@@ -18,7 +18,11 @@ type EventType =
   | 'banner_updated'
   | 'broadcast_started'
   | 'broadcast_published'
-  | 'broadcast_delivered';
+  | 'broadcast_delivered'
+  | 'music_generating'
+  | 'music_published'
+  | 'subscription_started'
+  | 'subscription_canceled';
 
 interface ActivityEvent {
   type: EventType;

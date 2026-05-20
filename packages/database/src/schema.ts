@@ -10,6 +10,11 @@ export const broadcastStatusEnum = pgEnum('broadcast_status', ['pending', 'gener
 export const broadcastTriggerEnum = pgEnum('broadcast_trigger', ['cron', 'on_demand']);
 export const deliveryChannelEnum = pgEnum('delivery_channel', ['dead_drop', 'whatsapp', 'webhook']);
 export const deliveryStatusEnum = pgEnum('delivery_status', ['pending', 'sent', 'failed']);
+export const subscriptionPlanEnum = pgEnum('subscription_plan', ['free', 'pro', 'studio']);
+export const subscriptionStatusEnum = pgEnum('subscription_status', [
+  'active', 'trialing', 'past_due', 'canceled', 'unpaid', 'incomplete', 'incomplete_expired', 'paused',
+]);
+export const musicTrackStatusEnum = pgEnum('music_track_status', ['pending', 'generating', 'ready', 'failed']);
 
 // Categories table
 export const categories = pgTable('categories', {
@@ -359,6 +364,53 @@ export type TestCase = {
   description?: string;
 };
 
+// === Subscriptions (Stripe Billing) ===
+export const subscriptions = pgTable('subscriptions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  agentId: uuid('agent_id').references(() => agents.id, { onDelete: 'cascade' }),
+  listenerId: varchar('listener_id', { length: 64 }),
+  email: varchar('email', { length: 255 }).notNull(),
+  stripeCustomerId: varchar('stripe_customer_id', { length: 64 }).notNull().unique(),
+  stripeSubscriptionId: varchar('stripe_subscription_id', { length: 64 }).unique(),
+  stripePriceId: varchar('stripe_price_id', { length: 64 }),
+  plan: subscriptionPlanEnum('plan').default('free').notNull(),
+  status: subscriptionStatusEnum('status').default('incomplete').notNull(),
+  currentPeriodEnd: timestamp('current_period_end'),
+  cancelAtPeriodEnd: boolean('cancel_at_period_end').default(false),
+  weekStart: timestamp('week_start').defaultNow().notNull(),
+  musicQuotaUsed: integer('music_quota_used').default(0).notNull(),
+  broadcastQuotaUsed: integer('broadcast_quota_used').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => ({
+  byListener: index('subscriptions_listener_idx').on(t.listenerId),
+  byAgent: index('subscriptions_agent_idx').on(t.agentId),
+}));
+
+// === Music Tracks (ElevenLabs Music) ===
+export const musicTracks = pgTable('music_tracks', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  agentId: uuid('agent_id').references(() => agents.id, { onDelete: 'set null' }),
+  listenerId: varchar('listener_id', { length: 64 }),
+  subscriptionId: uuid('subscription_id').references(() => subscriptions.id, { onDelete: 'set null' }),
+  title: varchar('title', { length: 200 }).notNull(),
+  prompt: text('prompt').notNull(),
+  genre: varchar('genre', { length: 60 }),
+  instrumental: boolean('instrumental').default(true),
+  durationSec: integer('duration_sec'),
+  audioUrlMp3: varchar('audio_url_mp3', { length: 500 }),
+  sizeBytes: integer('size_bytes'),
+  status: musicTrackStatusEnum('status').default('pending').notNull(),
+  errorMessage: text('error_message'),
+  playCount: integer('play_count').default(0).notNull(),
+  favoriteCount: integer('favorite_count').default(0).notNull(),
+  publishedAt: timestamp('published_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => ({
+  byAgent: index('music_tracks_agent_idx').on(t.agentId),
+  byStatus: index('music_tracks_status_idx').on(t.status),
+}));
+
 // Infer types
 export type Agent = typeof agents.$inferSelect;
 export type NewAgent = typeof agents.$inferInsert;
@@ -374,3 +426,7 @@ export type BroadcastTopic = typeof broadcastTopics.$inferSelect;
 export type VoiceBroadcast = typeof voiceBroadcasts.$inferSelect;
 export type BroadcastSubscription = typeof broadcastSubscriptions.$inferSelect;
 export type BroadcastDelivery = typeof broadcastDeliveries.$inferSelect;
+export type Subscription = typeof subscriptions.$inferSelect;
+export type NewSubscription = typeof subscriptions.$inferInsert;
+export type MusicTrack = typeof musicTracks.$inferSelect;
+export type NewMusicTrack = typeof musicTracks.$inferInsert;

@@ -24,6 +24,7 @@
     "jsonwebtoken": "^9.0.0",
     "node-cron": "^4.2.1",
     "pg": "^8.11.0",
+    "stripe": "^22.1.1",
     "tweetnacl": "^1.0.3",
     "twilio": "^5.0.0",
     "uuid": "^9.0.0",

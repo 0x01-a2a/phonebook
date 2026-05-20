@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@elevenlabs/react": "^0.14.3",
+    "@stripe/stripe-js": "^9.6.0",
     "next": "15.1.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

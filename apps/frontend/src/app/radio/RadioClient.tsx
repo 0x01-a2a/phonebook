@@ -33,7 +33,16 @@ interface DjClip {
   script: string;
 }
 
-type RadioState = 'loading' | 'ready' | 'jingle' | 'dj_intro' | 'broadcast' | 'dj_filler' | 'idle';
+interface MusicTrack {
+  id: string;
+  title: string;
+  genre: string | null;
+  audioUrlMp3: string | null;
+  durationSec: number | null;
+  publishedAt: string | null;
+}
+
+type RadioState = 'loading' | 'ready' | 'jingle' | 'dj_intro' | 'broadcast' | 'music' | 'dj_filler' | 'idle';
 
 const API = '';
 
@@ -83,6 +92,11 @@ export default function RadioClient() {
   const [broadcastIndex, setBroadcastIndex] = useState(0);
   const [currentDjClip, setCurrentDjClip] = useState<DjClip | null>(null);
 
+  // Music tracks (Pro subscriber generated)
+  const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([]);
+  const [currentMusicTrack, setCurrentMusicTrack] = useState<MusicTrack | null>(null);
+  const musicIndexRef = useRef(0);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -124,6 +138,20 @@ export default function RadioClient() {
       .catch(() => {
         // DJ clips are optional — continue without them
         setRadioState('ready');
+      });
+  }, []);
+
+  // Load music tracks (Pro subscriber generated)
+  useEffect(() => {
+    fetch(`${API}/api/music?limit=50`)
+      .then((r) => r.json())
+      .then((data: MusicTrack[]) => {
+        if (Array.isArray(data)) {
+          setMusicTracks(data.filter((t) => t.audioUrlMp3));
+        }
+      })
+      .catch(() => {
+        // Music is optional — continue without
       });
   }, []);
 
@@ -285,6 +313,15 @@ export default function RadioClient() {
     playAudioUrl(clip.audioUrl);
   }, [playAudioUrl]);
 
+  const playMusicTrack = useCallback((track: MusicTrack) => {
+    if (!track.audioUrlMp3) return;
+    setCurrentMusicTrack(track);
+    setNowPlaying(null);
+    setCurrentDjClip(null);
+    setRadioState('music');
+    playAudioUrl(track.audioUrlMp3);
+  }, [playAudioUrl]);
+
   // Play full jingle: chiptune melody → TTS tagline clip
   const playJingle = useCallback((nextState: 'dj_intro' | 'broadcast') => {
     jingleNextStateRef.current = nextState;
@@ -345,13 +382,13 @@ export default function RadioClient() {
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
-    } else if (nowPlaying || currentDjClip) {
+    } else if (nowPlaying || currentDjClip || currentMusicTrack) {
       ensureAudioContext();
       if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
       audio.play().catch(console.error);
       setIsPlaying(true);
     }
-  }, [isPlaying, nowPlaying, currentDjClip, ensureAudioContext]);
+  }, [isPlaying, nowPlaying, currentDjClip, currentMusicTrack, ensureAudioContext]);
 
   // Handle audio events — state machine transitions
   useEffect(() => {
@@ -403,14 +440,37 @@ export default function RadioClient() {
           }
         }
       } else if (radioState === 'broadcast') {
-        // Current broadcast ended → next broadcast or filler
+        // Current broadcast ended → maybe play music, else next broadcast/filler
         const playable = broadcasts.filter((b) => b.audioUrlMp3);
         const nextIdx = broadcastIndex + 1;
+
+        // 60% chance to play music between broadcasts (if music available)
+        if (musicTracks.length > 0 && Math.random() < 0.6) {
+          const track = musicTracks[musicIndexRef.current % musicTracks.length];
+          musicIndexRef.current++;
+          playMusicTrack(track);
+        } else if (nextIdx < playable.length) {
+          setBroadcastIndex(nextIdx);
+          playBroadcast(playable[nextIdx], nextIdx);
+        } else {
+          const fillers = djClips.filter((c) => c.type === 'filler');
+          if (fillers.length > 0) {
+            const filler = fillers[fillerIndexRef.current % fillers.length];
+            fillerIndexRef.current++;
+            playDjClip(filler, 'dj_filler');
+          } else {
+            setRadioState('idle');
+          }
+        }
+      } else if (radioState === 'music') {
+        // Music ended → next broadcast or filler
+        const playable = broadcasts.filter((b) => b.audioUrlMp3);
+        const nextIdx = broadcastIndex + 1;
+        setCurrentMusicTrack(null);
         if (nextIdx < playable.length) {
           setBroadcastIndex(nextIdx);
           playBroadcast(playable[nextIdx], nextIdx);
         } else {
-          // All broadcasts played → filler then jingle
           const fillers = djClips.filter((c) => c.type === 'filler');
           if (fillers.length > 0) {
             const filler = fillers[fillerIndexRef.current % fillers.length];
@@ -439,7 +499,7 @@ export default function RadioClient() {
       audio.removeEventListener('durationchange', onDur);
       audio.removeEventListener('ended', onEnded);
     };
-  }, [radioState, nowPlaying, broadcasts, broadcastIndex, djClips, playBroadcast, playDjClip, playJingle]);
+  }, [radioState, nowPlaying, broadcasts, broadcastIndex, djClips, musicTracks, playBroadcast, playDjClip, playJingle, playMusicTrack]);
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const t = parseFloat(e.target.value);
@@ -637,8 +697,25 @@ export default function RadioClient() {
               marginTop: 12,
               lineHeight: 2,
             }}>
-              {broadcasts.length} BROADCASTS READY
+              {broadcasts.length} BROADCASTS · {musicTracks.length} TRACKS READY
             </div>
+            <a
+              href="/subscribe"
+              style={{
+                display: 'inline-block',
+                marginTop: 16,
+                padding: '10px 20px',
+                fontFamily: 'var(--font-pixel)',
+                fontSize: '0.5rem',
+                background: PX.blue,
+                color: PX.white,
+                textDecoration: 'none',
+                letterSpacing: '0.1em',
+                ...pixelBorder(PX.blueDark, 3),
+              }}
+            >
+              + ADD YOUR MUSIC ($9/MO)
+            </a>
           </div>
         ) : radioState === 'idle' ? (
           /* Idle — waiting for new broadcasts */
@@ -716,7 +793,7 @@ export default function RadioClient() {
                 fontSize: '0.6rem',
                 color: isDjPlaying ? PX.blue : PX.green,
               }}>
-                {radioState === 'jingle' ? 'PHONEBOOK RADIO SHOW' : isDjPlaying ? 'RADIO DJ' : nowPlaying?.agentName}
+                {radioState === 'jingle' ? 'PHONEBOOK RADIO SHOW' : radioState === 'music' ? `♪ ${currentMusicTrack?.genre?.toUpperCase() || 'MUSIC'}` : isDjPlaying ? 'RADIO DJ' : nowPlaying?.agentName}
               </span>
               <span style={{
                 fontFamily: 'var(--font-pixel)',
@@ -738,7 +815,7 @@ export default function RadioClient() {
               whiteSpace: 'nowrap',
               lineHeight: 1.8,
             }}>
-              &gt; {radioState === 'jingle' && !currentDjClip ? '♪ JINGLE ♪' : isDjPlaying ? currentDjClip?.script : nowPlaying?.title}
+              &gt; {radioState === 'jingle' && !currentDjClip ? '♪ JINGLE ♪' : radioState === 'music' ? `♪ ${currentMusicTrack?.title || 'Now Playing'}` : isDjPlaying ? currentDjClip?.script : nowPlaying?.title}
             </div>
 
             {/* Controls */}

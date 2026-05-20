@@ -27,6 +27,9 @@ import { twilioRouter } from './routes/twilio.js';
 import { websocketHandler } from './websocket/handler.js';
 import { broadcastsRouter } from './routes/broadcasts.js';
 import { radioDjRouter } from './routes/radio-dj.js';
+import { subscriptionsRouter } from './routes/subscriptions.js';
+import { stripeWebhookRouter } from './routes/stripe-webhook.js';
+import { musicRouter } from './routes/music.js';
 import * as broadcastScheduler from './services/broadcast-scheduler.js';
 
 async function validateDependencies(): Promise<void> {
@@ -63,6 +66,25 @@ async function validateDependencies(): Promise<void> {
 const fastify = Fastify({
   logger: true,
 });
+
+// Raw body for Stripe webhook signature verification.
+// All other routes still get JSON-parsed body.
+fastify.addContentTypeParser(
+  'application/json',
+  { parseAs: 'buffer' },
+  function (req, body, done) {
+    const url = (req.raw as { url?: string }).url || '';
+    if (url.startsWith('/api/stripe/webhook')) {
+      done(null, body);
+    } else {
+      try {
+        done(null, JSON.parse((body as Buffer).toString('utf8')));
+      } catch (e) {
+        done(e as Error, undefined);
+      }
+    }
+  },
+);
 
 const start = async () => {
   try {
@@ -106,6 +128,9 @@ const start = async () => {
     await fastify.register(twilioRouter, { prefix: '/api/twilio' });
     await fastify.register(broadcastsRouter, { prefix: '/api/broadcasts' });
     await fastify.register(radioDjRouter, { prefix: '/api/radio-dj' });
+    await fastify.register(subscriptionsRouter, { prefix: '/api/subscriptions' });
+    await fastify.register(stripeWebhookRouter, { prefix: '/api/stripe/webhook' });
+    await fastify.register(musicRouter, { prefix: '/api/music' });
 
     // Serve audio files from data/audio/
     fastify.get('/api/audio/*', async (request, reply) => {
