@@ -554,24 +554,55 @@ export default function RadioClient() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'radial-gradient(ellipse at top, #2a2a2a 0%, #0d0d0d 60%, #000 100%)',
+      background: PX.bg,
       display: 'flex',
       flexDirection: 'column',
       imageRendering: 'pixelated',
-      backgroundAttachment: 'fixed',
-      position: 'relative',
+      padding: '1.5rem 1rem',
+      alignItems: 'center',
     }}>
-      {/* CRT scanlines overlay */}
-      <div style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundImage: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0, rgba(0,0,0,0.18) 1px, transparent 2px, transparent 3px)',
-        pointerEvents: 'none',
-        zIndex: 200,
-        mixBlendMode: 'multiply',
-      }} />
-
       <audio ref={audioRef} preload="auto" crossOrigin="anonymous" />
+
+      {/* ┌─ THE MACHINE — physical hi-fi tower chassis ─┐ */}
+      <div style={{
+        width: '100%',
+        maxWidth: 980,
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'linear-gradient(180deg, #3a3a3a 0%, #1a1a1a 100%)',
+        borderRadius: 6,
+        // chunky outer chassis: highlight + shadow combo for 3D bevel
+        boxShadow: [
+          '0 0 0 2px #000',                    // hairline outline
+          '0 0 0 6px #4a4a4a',                 // outer chrome ring
+          '0 0 0 8px #1a1a1a',                 // dark gap
+          '0 12px 0 8px #0a0a0a',              // shadow under feet
+          '0 18px 30px rgba(0,0,0,0.5)',       // ambient shadow
+          'inset 0 2px 0 rgba(255,255,255,0.15)', // top highlight
+          'inset 0 -2px 0 rgba(0,0,0,0.6)',    // bottom shadow
+        ].join(', '),
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* decorative screws — corners */}
+        {[
+          { top: 8, left: 8 },
+          { top: 8, right: 8 },
+          { bottom: 8, left: 8 },
+          { bottom: 8, right: 8 },
+        ].map((pos, i) => (
+          <span key={i} style={{
+            position: 'absolute', width: 10, height: 10, borderRadius: '50%',
+            background: 'radial-gradient(circle at 30% 30%, #888 0%, #333 60%, #111 100%)',
+            boxShadow: 'inset 0 0 0 1px #000, 0 1px 0 rgba(255,255,255,0.1)',
+            zIndex: 5, ...pos,
+          }}>
+            <span style={{
+              position: 'absolute', inset: 3, background: '#000', borderRadius: 1,
+              transform: 'rotate(45deg)', width: 4, height: 1,
+            }} />
+          </span>
+        ))}
 
       {/* TOWER TOP — brushed metal header with brand plate */}
       <header style={{
@@ -1249,12 +1280,38 @@ export default function RadioClient() {
         lineHeight: 2,
       }}>
         <span>
-          <span style={{ color: PX.greenDark }}>PHONE</span>
-          <span style={{ color: PX.blueDark }}>BOOK</span>
-          {' RADIO // '}{broadcasts.length} BROADCASTS
+          <span style={{ color: '#00CC44' }}>PHONE</span>
+          <span style={{ color: '#FFD700' }}>BOOK</span>
+          <span style={{ color: '#888' }}>{' RADIO // '}</span>
+          <span style={{ color: '#00CCFF' }}>{broadcasts.length} BROADCASTS · {musicTracks.length} TRACKS</span>
         </span>
-        <a href="/" style={{ color: PX.grayLight, textDecoration: 'none' }}>&lt; BACK</a>
+        <span style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          {/* tower feet indicator */}
+          <span style={{ display: 'inline-block', width: 8, height: 8, background: '#FF1A1A', borderRadius: '50%', boxShadow: '0 0 6px #FF1A1A' }} />
+          <a href="/" style={{ color: '#888', textDecoration: 'none' }}>&lt; EXIT</a>
+        </span>
       </footer>
+      </div>
+      {/* └─ /THE MACHINE ─┘ */}
+
+      {/* tower feet under the chassis */}
+      <div style={{
+        width: '100%',
+        maxWidth: 980,
+        display: 'flex',
+        justifyContent: 'space-between',
+        padding: '0 40px',
+        marginTop: -2,
+      }}>
+        {[0,1].map((i) => (
+          <div key={i} style={{
+            width: 60, height: 14,
+            background: 'linear-gradient(180deg, #2a2a2a 0%, #0a0a0a 100%)',
+            borderRadius: '0 0 6px 6px',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.4), inset 0 -2px 0 rgba(255,255,255,0.05)',
+          }} />
+        ))}
+      </div>
 
       <style>{`
         .radio-eq-row {
