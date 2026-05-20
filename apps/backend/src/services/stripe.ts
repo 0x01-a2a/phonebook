@@ -4,15 +4,29 @@
 
 import Stripe from 'stripe';
 
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const APP_URL = process.env.APP_URL || 'http://localhost:3000';
 
-if (!STRIPE_SECRET_KEY) {
-  console.warn('[Stripe] STRIPE_SECRET_KEY not set — Stripe calls will fail.');
+let stripeInstance: Stripe | null = null;
+
+function getStripe(): Stripe {
+  if (stripeInstance) return stripeInstance;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    throw new Error('STRIPE_SECRET_KEY not configured');
+  }
+  stripeInstance = new Stripe(key, { typescript: true });
+  return stripeInstance;
 }
 
-export const stripe = new Stripe(STRIPE_SECRET_KEY, {
-  typescript: true,
+export const stripe = new Proxy({} as Stripe, {
+  get(_target, prop) {
+    const real = getStripe();
+    const value = (real as unknown as Record<string | symbol, unknown>)[prop];
+    if (typeof value === 'function') {
+      return (value as (...args: unknown[]) => unknown).bind(real);
+    }
+    return value;
+  },
 });
 
 export interface CreateCheckoutSessionInput {
