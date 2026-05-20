@@ -695,37 +695,35 @@ export default function RadioClient() {
         </span>
       </div>
 
-      {/* STATIONS BAR — stereo preset panel */}
+      {/* STATIONS BAR — Winamp-style chiseled buttons */}
       <div style={{
-        padding: '1rem 0.75rem 0.8rem',
-        borderBottom: '3px solid #000',
-        background: 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%)',
-        boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.06), inset 0 -8px 16px rgba(0,0,0,0.6)',
+        padding: '8px 10px',
+        borderBottom: '2px solid #000',
+        background: 'linear-gradient(180deg, #4a5a6a 0%, #2a3a4a 50%, #1a2a3a 100%)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -2px 4px rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
       }}>
-        <div style={{
-          fontFamily: 'var(--font-pixel)',
-          fontSize: '0.35rem',
-          color: '#FFD700',
-          textAlign: 'center',
-          letterSpacing: '0.4em',
-          marginBottom: 12,
-          textShadow: '0 0 4px #FFD70060',
+        <span style={{
+          fontFamily: 'monospace, "Courier New"',
+          fontSize: 9,
+          color: '#9aaab9',
+          letterSpacing: 1,
+          padding: '0 6px 0 2px',
+          textShadow: '0 1px 0 #000',
         }}>
-          ━━━ PRESET STATIONS ━━━
-        </div>
-        <div style={{
-          display: 'flex',
-          gap: '0.5rem',
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-        }}>
+          PRESET
+        </span>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, flex: 1 }}>
           {[
-            { slug: 'mix', label: 'PHONEBOOK MIX', icon: '🎙', color: PX.green },
-            { slug: 'news', label: 'NEWS', icon: '📣', color: PX.blue },
-            { slug: 'synthwave', label: 'SYNTHWAVE', icon: '🌆', color: '#FF00AA' },
-            { slug: 'lofi', label: 'LO-FI LOUNGE', icon: '🌙', color: '#FFD700' },
-            { slug: 'ambient', label: 'AMBIENT', icon: '🌌', color: '#00CCFF' },
-            { slug: 'favorites', label: '♥ FAVORITES', icon: '', color: PX.red },
+            { slug: 'mix', label: 'MIX',  color: '#00FF44' },
+            { slug: 'news', label: 'NEWS', color: '#00CCFF' },
+            { slug: 'synthwave', label: 'SYNTH', color: '#FF00AA' },
+            { slug: 'lofi', label: 'LO-FI', color: '#FFD700' },
+            { slug: 'ambient', label: 'AMB', color: '#00FFCC' },
+            { slug: 'favorites', label: 'FAVS', color: '#FF1A1A' },
           ].map((s) => {
             const active = currentStation === s.slug;
             const count =
@@ -744,42 +742,45 @@ export default function RadioClient() {
               <button
                 key={s.slug}
                 onClick={() => { setCurrentStation(s.slug); musicIndexRef.current = 0; }}
+                title={s.slug.toUpperCase()}
                 style={{
-                  fontFamily: 'var(--font-pixel)',
-                  fontSize: '0.42rem',
-                  padding: '10px 14px',
+                  fontFamily: 'monospace, "Courier New"',
+                  fontSize: 9,
+                  fontWeight: 'bold',
+                  padding: '4px 8px',
+                  minHeight: 22,
+                  // Winamp chiseled bevel
                   background: active
-                    ? `linear-gradient(180deg, ${s.color} 0%, ${s.color}cc 100%)`
-                    : 'linear-gradient(180deg, #2a2a2a 0%, #161616 100%)',
-                  color: active ? '#000' : s.color,
+                    ? 'linear-gradient(180deg, #1a2030 0%, #2a3040 100%)'
+                    : 'linear-gradient(180deg, #6a7a8a 0%, #4a5a6a 50%, #3a4a5a 100%)',
+                  color: active ? s.color : '#1a1a1a',
                   cursor: 'pointer',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  lineHeight: 1.6,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  border: `1px solid ${active ? '#000' : '#555'}`,
-                  borderTopColor: active ? '#000' : '#777',
-                  borderLeftColor: active ? '#000' : '#777',
+                  letterSpacing: 0.5,
+                  lineHeight: 1.2,
+                  borderTop: active ? '1px solid #000' : '1px solid #b8c8d8',
+                  borderLeft: active ? '1px solid #000' : '1px solid #a8b8c8',
+                  borderRight: active ? '1px solid #889' : '1px solid #2a3a4a',
+                  borderBottom: active ? '1px solid #889' : '1px solid #1a2a3a',
                   boxShadow: active
-                    ? `inset 0 2px 6px rgba(0,0,0,0.4), 0 0 12px ${s.color}80`
-                    : `inset 0 1px 0 rgba(255,255,255,0.08), 0 2px 4px rgba(0,0,0,0.6)`,
-                  textShadow: active ? 'none' : `0 0 6px ${s.color}60`,
-                  transform: active ? 'translateY(1px)' : 'none',
-                  transition: 'all 80ms',
+                    ? `inset 1px 1px 2px rgba(0,0,0,0.7), 0 0 4px ${s.color}80`
+                    : 'inset 1px 1px 0 rgba(255,255,255,0.2)',
+                  textShadow: active ? `0 0 3px ${s.color}` : '0 1px 0 rgba(255,255,255,0.3)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  transition: 'all 60ms',
                 }}
               >
-                {s.icon && <span style={{ fontSize: '0.7rem' }}>{s.icon}</span>}
+                <span style={{
+                  display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
+                  background: active ? s.color : '#2a3a4a',
+                  boxShadow: active ? `0 0 4px ${s.color}` : 'inset 0 1px 1px rgba(0,0,0,0.5)',
+                }} />
                 <span>{s.label}</span>
                 <span style={{
-                  fontSize: '0.32rem',
-                  padding: '2px 5px',
-                  background: active ? '#000' : s.color,
-                  color: active ? s.color : '#000',
-                  borderRadius: 2,
-                  minWidth: 14,
-                  textAlign: 'center',
+                  fontSize: 8,
+                  color: active ? s.color : '#1a1a1a',
+                  opacity: 0.7,
                 }}>{count}</span>
               </button>
             );
@@ -787,54 +788,55 @@ export default function RadioClient() {
         </div>
       </div>
 
-      {/* TOPIC TABS — news subgenre selector */}
+      {/* TOPIC TABS — Winamp chiseled secondary bar */}
       <div style={{
         display: 'flex',
-        gap: '0.35rem',
-        padding: '0.5rem 0.75rem',
+        gap: 3,
+        padding: '5px 10px',
         borderBottom: '2px solid #000',
         flexWrap: 'wrap',
-        justifyContent: 'center',
-        background: 'linear-gradient(180deg, #161616 0%, #0d0d0d 100%)',
+        alignItems: 'center',
+        background: 'linear-gradient(180deg, #3a4a5a 0%, #2a3a4a 50%, #1a2a3a 100%)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 2px rgba(0,0,0,0.4)',
       }}>
-        <span style={{ fontFamily: 'var(--font-pixel)', fontSize: '0.32rem', color: '#666', alignSelf: 'center', letterSpacing: '0.2em' }}>NEWS:</span>
-        <button
-          onClick={() => setCurrentTopic('__latest__')}
-          style={{
-            fontFamily: 'var(--font-pixel)',
-            fontSize: 'clamp(0.3rem, 1.2vw, 0.4rem)',
-            padding: '4px 8px',
-            background: currentTopic === '__latest__' ? '#00CC44' : 'transparent',
-            color: currentTopic === '__latest__' ? '#000' : '#888',
-            cursor: 'pointer',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            lineHeight: 1.8,
-            border: `1px solid ${currentTopic === '__latest__' ? '#00CC44' : '#444'}`,
-          }}
-        >
-          ALL
-        </button>
-        {topics.map((t) => {
+        <span style={{
+          fontFamily: 'monospace, "Courier New"',
+          fontSize: 9,
+          color: '#9aaab9',
+          letterSpacing: 1,
+          padding: '0 6px 0 2px',
+          textShadow: '0 1px 0 #000',
+        }}>
+          NEWS
+        </span>
+        {[{ slug: '__latest__', name: 'ALL', emoji: '★' }, ...topics.map(t => ({ slug: t.slug, name: t.name.toUpperCase().slice(0,8), emoji: t.iconEmoji }))].map((t) => {
           const active = currentTopic === t.slug;
           return (
             <button
               key={t.slug}
               onClick={() => setCurrentTopic(t.slug)}
               style={{
-                fontFamily: 'var(--font-pixel)',
-                fontSize: 'clamp(0.3rem, 1.2vw, 0.4rem)',
-                padding: '4px 8px',
-                background: active ? '#0066FF' : 'transparent',
-                color: active ? '#fff' : '#888',
+                fontFamily: 'monospace, "Courier New"',
+                fontSize: 9,
+                fontWeight: 'bold',
+                padding: '3px 7px',
+                minHeight: 20,
+                background: active
+                  ? 'linear-gradient(180deg, #1a2030 0%, #2a3040 100%)'
+                  : 'linear-gradient(180deg, #6a7a8a 0%, #4a5a6a 50%, #3a4a5a 100%)',
+                color: active ? '#FFFF00' : '#1a1a1a',
                 cursor: 'pointer',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                lineHeight: 1.8,
-                border: `1px solid ${active ? '#0066FF' : '#444'}`,
+                letterSpacing: 0.5,
+                lineHeight: 1.2,
+                borderTop: active ? '1px solid #000' : '1px solid #b8c8d8',
+                borderLeft: active ? '1px solid #000' : '1px solid #a8b8c8',
+                borderRight: active ? '1px solid #889' : '1px solid #2a3a4a',
+                borderBottom: active ? '1px solid #889' : '1px solid #1a2a3a',
+                boxShadow: active ? 'inset 1px 1px 2px rgba(0,0,0,0.7), 0 0 3px #FFFF0070' : 'inset 1px 1px 0 rgba(255,255,255,0.2)',
+                textShadow: active ? '0 0 2px #FFFF00' : '0 1px 0 rgba(255,255,255,0.3)',
               }}
             >
-              {t.iconEmoji} {t.name}
+              {t.emoji} {t.name}
             </button>
           );
         })}
