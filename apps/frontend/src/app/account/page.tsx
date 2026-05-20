@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getListenerId } from '@/lib/listener-id';
 
@@ -30,6 +30,14 @@ interface MusicTrack {
 }
 
 export default function AccountPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 40, fontFamily: 'monospace' }}>LOADING...</div>}>
+      <AccountInner />
+    </Suspense>
+  );
+}
+
+function AccountInner() {
   const [status, setStatus] = useState<Status | null>(null);
   const [generating, setGenerating] = useState(false);
   const [prompt, setPrompt] = useState('');
